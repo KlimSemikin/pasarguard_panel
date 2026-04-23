@@ -35,7 +35,6 @@ class User(BaseModel):
     on_hold_timeout: dt | int | None = Field(default=None)
     group_ids: list[int] | None = Field(default_factory=list)
     auto_delete_in_days: int | None = Field(default=None)
-
     next_plan: NextPlanModel | None = Field(default=None)
 
 
@@ -191,9 +190,36 @@ class RemoveUsersResponse(BaseModel):
     count: int
 
 
+class BulkUsersActionResponse(BaseModel):
+    users: list[str]
+    count: int
+
+
+class BulkUsersSelection(BaseModel):
+    ids: set[int] = Field(default_factory=set)
+
+    @field_validator("ids", mode="after")
+    @classmethod
+    def ids_validator(cls, v):
+        return ListValidator.not_null_list(v, "user")
+
+
+class BulkUsersSetOwner(BulkUsersSelection):
+    admin_username: str
+
+    @field_validator("admin_username", check_fields=False)
+    @classmethod
+    def validate_admin_username(cls, v):
+        return UserValidator.validate_username(v)
+
+
 class ModifyUserByTemplate(BaseModel):
     user_template_id: int
     note: str | None = Field(max_length=500, default=None)
+
+
+class BulkUsersApplyTemplate(BulkUsersSelection, ModifyUserByTemplate):
+    """Apply a user template to a selection of existing users (by ID)."""
 
 
 class CreateUserFromTemplate(ModifyUserByTemplate):
@@ -207,18 +233,57 @@ class CreateUserFromTemplate(ModifyUserByTemplate):
 
 class BulkUser(BaseModel):
     amount: int
+    dry_run: bool = False
+    group_ids: set[int] = Field(default_factory=set)
+    admins: set[int] = Field(default_factory=set)
+    users: set[int] = Field(default_factory=set)
+    status: set[UserStatus] = Field(default_factory=set)
+    expired_after: dt | None = Field(default=None)
+    expired_before: dt | None = Field(default=None)
+
+    @field_validator("expired_after", "expired_before", check_fields=False)
+    @classmethod
+    def validator_datetime(cls, value):
+        if not value:
+            return value
+        return fix_datetime_timezone(value)
+
+
+class BulkUsersProxy(BaseModel):
+    flow: XTLSFlows | None = Field(default=None)
+    method: ShadowsocksMethods | None = Field(default=None)
+    dry_run: bool = False
+    group_ids: set[int] = Field(default_factory=set)
+    admins: set[int] = Field(default_factory=set)
+    users: set[int] = Field(default_factory=set)
+
+
+class BulkWireGuardPeerIPs(BaseModel):
+    """Re-seat WireGuard peer IPs (same scoping as BulkUser: users, admins, group_ids, status)."""
+
+    confirm: bool = False
+    dry_run: bool = False
+    replace_all: bool = False
     group_ids: set[int] = Field(default_factory=set)
     admins: set[int] = Field(default_factory=set)
     users: set[int] = Field(default_factory=set)
     status: set[UserStatus] = Field(default_factory=set)
 
 
-class BulkUsersProxy(BaseModel):
-    flow: XTLSFlows | None = Field(default=None)
-    method: ShadowsocksMethods | None = Field(default=None)
-    group_ids: set[int] = Field(default_factory=set)
-    admins: set[int] = Field(default_factory=set)
-    users: set[int] = Field(default_factory=set)
+class BulkOperationDryRunResponse(BaseModel):
+    """Preview for bulk user/group operations (no DB writes)."""
+
+    dry_run: bool = True
+    affected_users: int
+
+
+class WireGuardPeerIPsReallocateResponse(BaseModel):
+    wireguard_inbound_tags: int
+    candidates: int
+    updated: int
+    dry_run: bool
+    sample_usernames: list[str]
+    affected_users: int
 
 
 class UsernameGenerationStrategy(str, Enum):

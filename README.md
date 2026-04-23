@@ -71,7 +71,7 @@
 
 > **What is PasarGuard?**
 
-PasarGuard is a powerful proxy management tool that offers an intuitive and efficient interface for handling hundreds of proxy accounts. Built with Python and React.js it combines performance, scalability, and ease of use to simplify large-scale proxy management. it's powered by [Xray-core](https://github.com/XTLS/Xray-core) for maximum performance.
+PasarGuard is a powerful proxy management tool that offers an intuitive and efficient interface for handling hundreds of proxy accounts. Built with Python and React.js it combines performance, scalability, and ease of use to simplify large-scale proxy management. It supports both [Xray-core](https://github.com/XTLS/Xray-core) and [WireGuard](https://www.wireguard.com/) for maximum performance.
 
 ---
 
@@ -93,7 +93,7 @@ PasarGuard is a user-friendly, feature-rich, and reliable proxy management tool.
 - **Multi-Node** support for infrastructure distribution
 
 **🔐 Protocols & Security**
-- Supports **Vmess**, **VLESS**, **Trojan** and **Shadowsocks**
+- Supports **Vmess**, **VLESS**, **Trojan**, **Shadowsocks**, **WireGuard** and **Hysteria2**
 - **TLS** and **REALITY** support
 - **Multi-protocol** for a single user
 

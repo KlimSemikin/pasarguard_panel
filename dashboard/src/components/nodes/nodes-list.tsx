@@ -1,7 +1,21 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { CircleFadingArrowUp, Power, PowerOff, RefreshCcw, Trash2, WifiSync } from 'lucide-react'
 import Node from '@/components/nodes/node'
-import { useGetNodes, useModifyNode, useGetCoresSimple, NodeResponse, NodeStatus, NodeModify } from '@/service/api'
+import {
+  useBulkDeleteNodes,
+  useBulkDisableNodes,
+  useBulkEnableNodes,
+  useBulkReconnectNodes,
+  useBulkResetNodesUsage,
+  useBulkUpdateNodes,
+  useGetNodes,
+  useModifyNode,
+  useGetCoresSimple,
+  NodeResponse,
+  NodeStatus,
+  NodeModify,
+} from '@/service/api'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
 import NodeModal from '@/components/dialogs/node-modal'
@@ -16,8 +30,21 @@ import { nodeAdvanceSearchFormSchema, type NodeAdvanceSearchFormValue } from '@/
 import { ListGenerator } from '@/components/common/list-generator'
 import { useNodeListColumns } from '@/components/nodes/use-node-list-columns'
 import { usePersistedViewMode } from '@/hooks/use-persisted-view-mode'
+import { BulkActionItem, BulkActionsBar } from '@/components/users/bulk-actions-bar'
+import { BulkActionAlertDialog } from '@/components/users/bulk-action-alert-dialog'
 
 const NODES_PER_PAGE = 15
+
+type BulkNodeActionType = 'delete' | 'disable' | 'enable' | 'reset' | 'reconnect' | 'update'
+
+interface BulkActionDialogConfig {
+  title: string
+  description: string
+  actionLabel: string
+  onConfirm: () => Promise<void>
+  isPending: boolean
+  destructive?: boolean
+}
 
 export default function NodesList() {
   const { t } = useTranslation()
@@ -34,6 +61,14 @@ export default function NodesList() {
   const [localSearchTerm, setLocalSearchTerm] = useState<string>('')
   const [isAdvanceSearchOpen, setIsAdvanceSearchOpen] = useState(false)
   const [viewMode, setViewMode] = usePersistedViewMode('view-mode:nodes')
+  const [selectedNodeIds, setSelectedNodeIds] = useState<number[]>([])
+  const [bulkAction, setBulkAction] = useState<BulkNodeActionType | null>(null)
+  const bulkDeleteNodesMutation = useBulkDeleteNodes()
+  const bulkDisableNodesMutation = useBulkDisableNodes()
+  const bulkEnableNodesMutation = useBulkEnableNodes()
+  const bulkResetNodesUsageMutation = useBulkResetNodesUsage()
+  const bulkReconnectNodesMutation = useBulkReconnectNodes()
+  const bulkUpdateNodesMutation = useBulkUpdateNodes()
 
   const [filters, setFilters] = useState<{
     limit: number
@@ -46,7 +81,7 @@ export default function NodesList() {
     offset: 0,
     search: undefined,
     status: undefined,
-    core_id: undefined
+    core_id: undefined,
   })
 
   const form = useForm<NodeFormValues>({
@@ -58,7 +93,7 @@ export default function NodesList() {
     resolver: zodResolver(nodeAdvanceSearchFormSchema),
     defaultValues: {
       status: filters.status || [],
-      core_id: filters.core_id || undefined
+      core_id: filters.core_id || undefined,
     },
   })
 
@@ -112,6 +147,15 @@ export default function NodesList() {
     const handleOpenDialog = () => setIsDialogOpen(true)
     window.addEventListener('openNodeDialog', handleOpenDialog)
     return () => window.removeEventListener('openNodeDialog', handleOpenDialog)
+  }, [])
+
+  const clearSelection = () => {
+    setSelectedNodeIds([])
+  }
+
+  const invalidateNodeQueries = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['/api/nodes'] })
+    queryClient.invalidateQueries({ queryKey: ['/api/nodes/simple'] })
   }, [])
 
   const handleFilterChange = useCallback(
@@ -171,8 +215,7 @@ export default function NodesList() {
     try {
       const shouldEnable = node.status === 'disabled'
       const newStatus = shouldEnable ? 'connected' : 'disabled'
-      const toOptional = <T,>(value: T | null | undefined): Exclude<T, null> | undefined =>
-        value === null || value === undefined ? undefined : (value as Exclude<T, null>)
+      const toOptional = <T,>(value: T | null | undefined): Exclude<T, null> | undefined => (value === null || value === undefined ? undefined : (value as Exclude<T, null>))
 
       const data: NodeModify = {
         name: node.name,
@@ -226,12 +269,7 @@ export default function NodesList() {
     return nodesResponse?.nodes || []
   }, [shouldUseLocalSearch, localSearchTerm, allNodes, nodesResponse?.nodes])
 
-  const hasActiveFilters = !!(
-    filters.search ||
-    localSearchTerm ||
-    (filters.status && filters.status.length > 0) ||
-    filters.core_id
-  )
+  const hasActiveFilters = !!(filters.search || localSearchTerm || (filters.status && filters.status.length > 0) || filters.core_id)
 
   const paginatedNodes = useMemo(() => {
     if (shouldUseLocalSearch && localSearchTerm) {
@@ -307,6 +345,288 @@ export default function NodesList() {
     setIsAdvanceSearchOpen(open)
   }
 
+  const handleBulkDelete = async () => {
+    if (!selectedNodeIds.length) return
+
+    try {
+      const response = await bulkDeleteNodesMutation.mutateAsync({
+        data: {
+          ids: selectedNodeIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('nodes.bulkDeleteSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} nodes deleted successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      invalidateNodeQueries()
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description:
+          error?.data?.detail ||
+          error?.message ||
+          t('nodes.bulkDeleteFailed', {
+            defaultValue: 'Failed to delete selected nodes.',
+          }),
+      })
+    }
+  }
+
+  const handleBulkDisable = async () => {
+    if (!selectedDisableEligibleIds.length) return
+
+    try {
+      const response = await bulkDisableNodesMutation.mutateAsync({
+        data: {
+          ids: selectedDisableEligibleIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('nodes.bulkDisableSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} nodes disabled successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      invalidateNodeQueries()
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: error?.data?.detail || error?.message || t('nodes.bulkDisableFailed', { defaultValue: 'Failed to disable selected nodes.' }),
+      })
+    }
+  }
+
+  const handleBulkEnable = async () => {
+    if (!selectedEnableEligibleIds.length) return
+
+    try {
+      const response = await bulkEnableNodesMutation.mutateAsync({
+        data: {
+          ids: selectedEnableEligibleIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('nodes.bulkEnableSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} nodes enabled successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      invalidateNodeQueries()
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: error?.data?.detail || error?.message || t('nodes.bulkEnableFailed', { defaultValue: 'Failed to enable selected nodes.' }),
+      })
+    }
+  }
+
+  const handleBulkResetUsage = async () => {
+    if (!selectedNodeIds.length) return
+
+    try {
+      const response = await bulkResetNodesUsageMutation.mutateAsync({
+        data: {
+          ids: selectedNodeIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('nodes.bulkResetUsageSuccess', {
+          count: response.count,
+          defaultValue: 'Usage reset for {{count}} nodes.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      invalidateNodeQueries()
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: error?.data?.detail || error?.message || t('nodes.bulkResetUsageFailed', { defaultValue: 'Failed to reset usage for selected nodes.' }),
+      })
+    }
+  }
+
+  const handleBulkReconnect = async () => {
+    if (!selectedNodeIds.length) return
+
+    try {
+      const response = await bulkReconnectNodesMutation.mutateAsync({
+        data: {
+          ids: selectedNodeIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('nodes.bulkReconnectSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} nodes reconnected successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      invalidateNodeQueries()
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: error?.data?.detail || error?.message || t('nodes.bulkReconnectFailed', { defaultValue: 'Failed to reconnect selected nodes.' }),
+      })
+    }
+  }
+
+  const handleBulkUpdate = async () => {
+    if (!selectedNodeIds.length) return
+
+    try {
+      const response = await bulkUpdateNodesMutation.mutateAsync({
+        data: {
+          ids: selectedNodeIds,
+        },
+      })
+      toast.success(t('success', { defaultValue: 'Success' }), {
+        description: t('nodes.bulkUpdateSuccess', {
+          count: response.count,
+          defaultValue: '{{count}} nodes updated successfully.',
+        }),
+      })
+      clearSelection()
+      setBulkAction(null)
+      invalidateNodeQueries()
+    } catch (error: any) {
+      toast.error(t('error', { defaultValue: 'Error' }), {
+        description: error?.data?.detail || error?.message || t('nodes.bulkUpdateFailed', { defaultValue: 'Failed to update selected nodes.' }),
+      })
+    }
+  }
+
+  const selectedCount = selectedNodeIds.length
+  const nodeCandidates = (nodesResponse?.nodes || []).concat(allNodes || [])
+  const selectedNodesMap = new Map<number, NodeResponse>()
+  nodeCandidates.forEach(node => {
+    if (selectedNodeIds.includes(node.id)) selectedNodesMap.set(node.id, node)
+  })
+  const selectedNodes = Array.from(selectedNodesMap.values())
+  const selectedEnableEligibleIds = selectedNodes.filter(node => node.status === 'disabled').map(node => node.id)
+  const selectedDisableEligibleIds = selectedNodes.filter(node => node.status !== 'disabled').map(node => node.id)
+  const enableEligibleCount = selectedEnableEligibleIds.length
+  const disableEligibleCount = selectedDisableEligibleIds.length
+  const bulkActions: BulkActionItem[] = selectedCount
+    ? [
+        {
+          key: 'delete',
+          label: t('delete'),
+          icon: Trash2,
+          onClick: () => setBulkAction('delete'),
+          direct: true,
+          destructive: true,
+        },
+        ...(disableEligibleCount > 0
+          ? [
+            {
+              key: 'disable',
+              label: t('disable'),
+              icon: PowerOff,
+              onClick: () => setBulkAction('disable'),
+            } as BulkActionItem,
+          ]
+          : []),
+        ...(enableEligibleCount > 0
+          ? [
+            {
+              key: 'enable',
+              label: t('enable'),
+              icon: Power,
+              onClick: () => setBulkAction('enable'),
+            } as BulkActionItem,
+          ]
+          : []),
+        {
+          key: 'reset',
+          label: t('nodeModal.resetUsage', { defaultValue: 'Reset Usage' }),
+          icon: RefreshCcw,
+          onClick: () => setBulkAction('reset'),
+        },
+        {
+          key: 'reconnect',
+          label: t('nodeModal.reconnect', { defaultValue: 'Reconnect' }),
+          icon: WifiSync,
+          onClick: () => setBulkAction('reconnect'),
+        },
+        {
+          key: 'update',
+          label: t('nodeModal.updateNode', { defaultValue: 'Update Node' }),
+          icon: CircleFadingArrowUp,
+          onClick: () => setBulkAction('update'),
+        },
+      ]
+    : []
+
+  const bulkActionConfigs: Record<BulkNodeActionType, BulkActionDialogConfig> = {
+    delete: {
+      title: t('nodes.bulkDeleteTitle', { defaultValue: 'Delete Selected Nodes' }),
+      description: t('nodes.bulkDeletePrompt', {
+        count: selectedCount,
+        defaultValue: 'Are you sure you want to delete {{count}} selected nodes? This action cannot be undone.',
+      }),
+      actionLabel: t('delete'),
+      onConfirm: handleBulkDelete,
+      isPending: bulkDeleteNodesMutation.isPending,
+      destructive: true,
+    },
+    enable: {
+      title: t('nodes.bulkEnableTitle', { defaultValue: 'Enable Selected Nodes' }),
+      description: t('nodes.bulkEnablePrompt', {
+        count: enableEligibleCount,
+        defaultValue: 'Are you sure you want to enable {{count}} selected nodes?',
+      }),
+      actionLabel: t('enable'),
+      onConfirm: handleBulkEnable,
+      isPending: bulkEnableNodesMutation.isPending,
+    },
+    disable: {
+      title: t('nodes.bulkDisableTitle', { defaultValue: 'Disable Selected Nodes' }),
+      description: t('nodes.bulkDisablePrompt', {
+        count: disableEligibleCount,
+        defaultValue: 'Are you sure you want to disable {{count}} selected nodes?',
+      }),
+      actionLabel: t('disable'),
+      onConfirm: handleBulkDisable,
+      isPending: bulkDisableNodesMutation.isPending,
+    },
+    reset: {
+      title: t('nodes.bulkResetUsageTitle', { defaultValue: 'Reset Usage for Selected Nodes' }),
+      description: t('nodes.bulkResetUsagePrompt', {
+        count: selectedCount,
+        defaultValue: 'Are you sure you want to reset usage for {{count}} selected nodes?',
+      }),
+      actionLabel: t('nodeModal.resetUsage', { defaultValue: 'Reset Usage' }),
+      onConfirm: handleBulkResetUsage,
+      isPending: bulkResetNodesUsageMutation.isPending,
+    },
+    reconnect: {
+      title: t('nodes.bulkReconnectTitle', { defaultValue: 'Reconnect Selected Nodes' }),
+      description: t('nodes.bulkReconnectPrompt', {
+        count: selectedCount,
+        defaultValue: 'Are you sure you want to reconnect {{count}} selected nodes?',
+      }),
+      actionLabel: t('nodeModal.reconnect', { defaultValue: 'Reconnect' }),
+      onConfirm: handleBulkReconnect,
+      isPending: bulkReconnectNodesMutation.isPending,
+    },
+    update: {
+      title: t('nodes.bulkUpdateTitle', { defaultValue: 'Update Selected Nodes' }),
+      description: t('nodes.bulkUpdatePrompt', {
+        count: selectedCount,
+        defaultValue: 'Are you sure you want to update {{count}} selected nodes?',
+      }),
+      actionLabel: t('nodeModal.updateNode', { defaultValue: 'Update Node' }),
+      onConfirm: handleBulkUpdate,
+      isPending: bulkUpdateNodesMutation.isPending,
+    },
+  }
+  const activeBulkActionConfig = bulkAction ? bulkActionConfigs[bulkAction] : null
+
   return (
     <div className="flex w-full flex-col items-start gap-2">
       <div className="w-full flex-1 space-y-4 py-4">
@@ -320,6 +640,7 @@ export default function NodesList() {
           viewMode={viewMode}
           onViewModeChange={setViewMode}
         />
+        <BulkActionsBar selectedCount={selectedCount} onClear={clearSelection} actions={bulkActions} />
         <div className="min-h-[55dvh]">
           {(showLoadingSpinner || showPageLoadingSkeletons || nodesData.length > 0) && (
             <ListGenerator
@@ -331,6 +652,10 @@ export default function NodesList() {
               className="gap-3"
               onRowClick={handleEdit}
               mode={viewMode}
+              enableSelection
+              enableGridSelection
+              selectedRowIds={selectedNodeIds}
+              onSelectionChange={ids => setSelectedNodeIds(ids.map(id => Number(id)))}
               showEmptyState={false}
               gridClassName="transform-gpu animate-slide-up"
               gridStyle={{ animationDuration: '500ms', animationDelay: '100ms', animationFillMode: 'both' }}
@@ -388,9 +713,7 @@ export default function NodesList() {
               <CardContent className="p-8 text-center">
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold">{t('nodes.noFilteredResults')}</h3>
-                  <p className="mx-auto max-w-2xl text-muted-foreground">
-                    {t('nodes.noSearchResults')}
-                  </p>
+                  <p className="mx-auto max-w-2xl text-muted-foreground">{t('nodes.noSearchResults')}</p>
                 </div>
               </CardContent>
             </Card>
@@ -417,14 +740,20 @@ export default function NodesList() {
           }}
         />
 
-        <NodeAdvanceSearchModal
-          isDialogOpen={isAdvanceSearchOpen}
-          onOpenChange={setIsAdvanceSearchOpen}
-          form={advanceSearchForm}
-          onSubmit={handleAdvanceSearchSubmit}
-        />
+        <NodeAdvanceSearchModal isDialogOpen={isAdvanceSearchOpen} onOpenChange={setIsAdvanceSearchOpen} form={advanceSearchForm} onSubmit={handleAdvanceSearchSubmit} />
+        {activeBulkActionConfig && (
+          <BulkActionAlertDialog
+            open={!!bulkAction}
+            onOpenChange={open => setBulkAction(open ? bulkAction : null)}
+            title={activeBulkActionConfig.title}
+            description={activeBulkActionConfig.description}
+            actionLabel={activeBulkActionConfig.actionLabel}
+            onConfirm={activeBulkActionConfig.onConfirm}
+            isPending={activeBulkActionConfig.isPending}
+            destructive={activeBulkActionConfig.destructive}
+          />
+        )}
       </div>
     </div>
   )
 }
-

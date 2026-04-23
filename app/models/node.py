@@ -7,6 +7,7 @@ from cryptography.x509 import load_pem_x509_certificate
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 from app.db.models import DataLimitResetStrategy, NodeConnectionType, NodeStatus
+from .validators import ListValidator
 
 # Basic PEM format validation
 CERT_PATTERN = r"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----"
@@ -77,6 +78,8 @@ class NodeCreate(Node):
             ip_address(v)
             return v
         except ValueError:
+            if v.lower() == "localhost":
+                return v
             # Regex for domain validation
             if re.match(r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,14}$", v):
                 return v
@@ -268,3 +271,28 @@ class NodeCoreUpdate(BaseModel):
 
 class NodeGeoFilesUpdate(BaseModel):
     region: GeoFilseRegion = Field(default=GeoFilseRegion.iran, examples=["iran"])
+
+
+class BulkNodeSelection(BaseModel):
+    """Model for bulk node selection by IDs"""
+
+    ids: set[int] = Field(default_factory=set)
+
+    @field_validator("ids", mode="after")
+    @classmethod
+    def ids_validator(cls, v):
+        return ListValidator.not_null_list(list(v), "node")
+
+
+class RemoveNodesResponse(BaseModel):
+    """Response model for bulk node deletion"""
+
+    nodes: list[str]
+    count: int
+
+
+class BulkNodesActionResponse(BaseModel):
+    """Response model for bulk node actions."""
+
+    nodes: list[str]
+    count: int

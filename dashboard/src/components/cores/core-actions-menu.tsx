@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { Copy, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 import { CoreResponse } from '@/service/api'
@@ -16,6 +16,7 @@ export default function CoreActionsMenu({ core, onEdit, onDuplicate, onDelete, c
   const { t } = useTranslation()
 
   const handleDeleteClick = (event: Event) => {
+    event.preventDefault()
     event.stopPropagation()
     if (onDelete) {
       onDelete()
@@ -26,7 +27,7 @@ export default function CoreActionsMenu({ core, onEdit, onDuplicate, onDelete, c
     <div className={className} onClick={e => e.stopPropagation()}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon">
+          <Button type="button" variant="ghost" size="icon">
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -51,6 +52,7 @@ export default function CoreActionsMenu({ core, onEdit, onDuplicate, onDelete, c
               {t('duplicate')}
             </DropdownMenuItem>
           )}
+          <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
             <Trash2 className="mr-2 h-4 w-4" />
             {t('delete')}

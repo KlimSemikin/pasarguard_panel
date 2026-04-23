@@ -1,7 +1,7 @@
 from datetime import datetime as dt
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.db import AsyncSession, get_db
 from app.db.models import UserStatus
@@ -9,9 +9,14 @@ from app.models.admin import AdminDetails
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import (
     BulkUser,
+    BulkUsersActionResponse,
     BulkUsersCreateResponse,
     BulkUsersFromTemplate,
     BulkUsersProxy,
+    BulkUsersApplyTemplate,
+    BulkUsersSelection,
+    BulkUsersSetOwner,
+    BulkWireGuardPeerIPs,
     CreateUserFromTemplate,
     ModifyUserByTemplate,
     RemoveUsersResponse,
@@ -22,6 +27,7 @@ from app.models.user import (
     UsersSimpleResponse,
     UserSubscriptionUpdateChart,
     UserSubscriptionUpdateList,
+    WireGuardPeerIPsReallocateResponse,
 )
 from app.operation import OperatorType
 from app.operation.node import NodeOperation
@@ -347,6 +353,90 @@ async def delete_expired_users(
     )
 
 
+@router.post(
+    "s/bulk/delete",
+    response_model=RemoveUsersResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_delete_users(
+    bulk_users: BulkUsersSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Delete selected users by ID."""
+    return await user_operator.bulk_remove_users(db, bulk_users, admin)
+
+
+@router.post(
+    "s/bulk/reset",
+    response_model=BulkUsersActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_reset_users_data_usage(
+    bulk_users: BulkUsersSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Reset usage for selected users by ID."""
+    return await user_operator.bulk_reset_user_data_usage(db, bulk_users, admin)
+
+
+@router.post(
+    "s/bulk/disable",
+    response_model=BulkUsersActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_disable_users(
+    bulk_users: BulkUsersSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Disable selected users by ID."""
+    return await user_operator.bulk_disable_users(db, bulk_users, admin)
+
+
+@router.post(
+    "s/bulk/enable",
+    response_model=BulkUsersActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_enable_users(
+    bulk_users: BulkUsersSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Enable selected users by ID."""
+    return await user_operator.bulk_enable_users(db, bulk_users, admin)
+
+
+@router.post(
+    "s/bulk/revoke_sub",
+    response_model=BulkUsersActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_revoke_users_subscription(
+    bulk_users: BulkUsersSelection,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Revoke subscriptions for selected users by ID."""
+    return await user_operator.bulk_revoke_user_sub(db, bulk_users, admin)
+
+
+@router.put(
+    "s/bulk/set_owner",
+    response_model=BulkUsersActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_set_owner(
+    bulk_users: BulkUsersSetOwner,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(check_sudo_admin),
+):
+    """Set a new owner for selected users by ID."""
+    return await user_operator.bulk_set_owner(db, bulk_users, admin)
+
+
 @router.post("/from_template", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
 async def create_user_from_template(
     new_template_user: CreateUserFromTemplate,
@@ -380,6 +470,20 @@ async def bulk_create_users_from_template(
     return await user_operator.bulk_create_users_from_template(db, bulk_template_users, admin)
 
 
+@router.post(
+    "s/bulk/apply_template",
+    response_model=BulkUsersActionResponse,
+    responses={400: responses._400, 403: responses._403, 404: responses._404},
+)
+async def bulk_apply_template_to_users(
+    body: BulkUsersApplyTemplate,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    """Apply a user template to selected existing users by ID."""
+    return await user_operator.bulk_apply_template_to_users(db, body, admin)
+
+
 @router.put("/from_template/{username}", response_model=UserResponse)
 async def modify_user_with_template(
     username: str,
@@ -404,6 +508,8 @@ async def bulk_modify_users_expire(
     - **admins**: Optional list of admin IDs — their users will be targeted
     - **status**: Optional status to filter users (e.g., "expired", "active"), Empty means no filtering
     - **group_ids**: Optional list of group IDs to filter users by their group membership
+    - **expired_after**: Optional UTC datetime to filter users who expired after this date (works only if "expired" status is selected)
+    - **expired_before**: Optional UTC datetime to filter users who expired before this date (works only if "expired" status is selected)
     """
     return await user_operator.bulk_modify_expire(db, bulk_model)
 
@@ -424,6 +530,8 @@ async def bulk_modify_users_datalimit(
     - **admins**: Optional list of admin IDs — their users will be targeted
     - **status**: Optional status to filter users (e.g., "expired", "active"), Empty means no filtering
     - **group_ids**: Optional list of group IDs to filter users by their group membership
+    - **expired_after**: Optional UTC datetime to filter users who expired after this date (works only if "expired" status is selected)
+    - **expired_before**: Optional UTC datetime to filter users who expired before this date (works only if "expired" status is selected)
     """
     return await user_operator.bulk_modify_datalimit(db, bulk_model)
 
@@ -437,3 +545,22 @@ async def bulk_modify_users_proxy_settings(
     _: AdminDetails = Depends(check_sudo_admin),
 ):
     return await user_operator.bulk_modify_proxy_settings(db, bulk_model)
+
+
+@router.post(
+    "s/bulk/wireguard/reallocate-peer-ips",
+    response_model=WireGuardPeerIPsReallocateResponse,
+    summary="Bulk reallocate WireGuard peer IPs",
+    description="Same scoping as other bulk user actions (users, admins, group_ids, optional status filter). Non-sudo admins only affect their own users.",
+)
+async def bulk_reallocate_wireguard_peer_ips(
+    body: BulkWireGuardPeerIPs,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminDetails = Depends(get_current),
+):
+    if not body.dry_run and not body.confirm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Set confirm=true to apply changes, or use dry_run=true to preview.",
+        )
+    return await user_operator.bulk_reallocate_wireguard_peer_ips(db, body, admin)

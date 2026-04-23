@@ -1,6 +1,5 @@
 import base64
 import hashlib
-import ipaddress
 import json
 import re
 from enum import Enum
@@ -174,9 +173,11 @@ class BaseSubscription:
         parts[2] = route
         return "-".join(parts)
 
-    def _get_hysteria_data_from_finalmask(self, finalmask: dict) -> tuple[Any | Literal[""], Any | dict]:
+    def _get_hysteria_data_from_finalmask(self, finalmask: dict | None) -> tuple[Any | Literal[""], Any | dict]:
         """Extract Hysteria obfuscation password and QUIC parameters from finalmask"""
 
+        if finalmask is None:
+            finalmask = {}
         obfs_password = ""
         quic_params: dict = finalmask.get("quicParams", {})
         if udp := finalmask.get("udp"):
@@ -187,72 +188,11 @@ class BaseSubscription:
 
         return obfs_password, quic_params
 
-    @staticmethod
-    def _get_wireguard_peer_ips(settings: dict, inbound: SubscriptionInboundData) -> list[str]:
-        peer_ips = settings.get("peer_ips") or []
-        if peer_ips:
-            return peer_ips
-
-        user_id = settings.get("_user_id")
-        if user_id is None:
-            return []
-
-        local_addresses = inbound.wireguard_local_address or []
-        if local_addresses:
-            generated_ips = []
-            for addr in local_addresses:
-                try:
-                    network = ipaddress.ip_network(addr, strict=False)
-                    if network.version == 4:
-                        network_addr = int(network.network_address)
-                        usable_hosts = network.num_addresses - 2
-                        if usable_hosts <= 0:
-                            continue
-                        offset = (user_id % usable_hosts) + 1
-                        ip = ipaddress.IPv4Address(network_addr + offset)
-                        generated_ips.append(f"{ip}/32")
-                    elif network.version == 6:
-                        network_addr = int(network.network_address)
-                        usable_hosts = network.num_addresses - 2
-                        if usable_hosts <= 0:
-                            continue
-                        offset = (user_id % usable_hosts) + 1
-                        ip = ipaddress.IPv6Address(network_addr + offset)
-                        generated_ips.append(f"{ip}/128")
-                except (ValueError, ipaddress.AddressValueError):
-                    continue
-
-            if generated_ips:
-                return generated_ips
-
-        # Fallback to global pool based on user_id (deterministic)
-        # Use 10.0.0.0/8 pool, skipping reserved IPs
-        global_pool = ipaddress.ip_network("10.0.0.0/8")
-        reserved = {ipaddress.ip_address("10.0.0.0"), ipaddress.ip_address("10.0.0.1")}
-
-        # Calculate a deterministic IP for this user
-        # Use user_id to select an IP from the pool
-        start = int(global_pool.network_address)
-        end = int(global_pool.broadcast_address)
-
-        # Skip reserved IPs and broadcast
-        offset = user_id
-        while True:
-            candidate_int = start + 2 + (offset % (end - start - 2))
-            if candidate_int > end:
-                break
-            candidate = ipaddress.ip_address(candidate_int)
-            if candidate not in reserved and candidate != global_pool.broadcast_address:
-                return [f"{candidate}/32"]
-            offset += 1
-
-        return []
-
     def _build_wireguard_components(
         self, remark: str, address: str, inbound: SubscriptionInboundData, settings: dict
     ) -> dict | None:
         private_key = settings.get("private_key", "")
-        peer_ips = self._get_wireguard_peer_ips(settings, inbound)
+        peer_ips = list(settings.get("peer_ips") or [])
         public_key = inbound.wireguard_public_key
         if not private_key or not peer_ips or not public_key:
             return None

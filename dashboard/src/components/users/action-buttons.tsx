@@ -5,7 +5,7 @@ import useDirDetection from '@/hooks/use-dir-detection'
 import { type UseEditFormValues } from '@/components/forms/user-form'
 import { useActiveNextPlan, useGetCurrentAdmin, useRemoveUser, useResetUserDataUsage, useRevokeUserSubscription, UserResponse, UsersResponse } from '@/service/api'
 import { useQueryClient } from '@tanstack/react-query'
-import { Cat, Check, Copy, Cpu, EllipsisVertical, GlobeLock, Link2Off, ListStart, ListTree, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, User, Users } from 'lucide-react'
+import { Cat, Check, Copy, Cpu, EllipsisVertical, GlobeLock, Link2Off, ListStart, ListTree, Network, Pencil, PieChart, QrCode, RefreshCcw, Trash2, UserCog, Users } from 'lucide-react'
 import { WireguardIcon, XrayIcon, SingboxIcon, MihomoIcon } from '@/components/icons/format-icons'
 import { Code } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
@@ -13,6 +13,7 @@ import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { CopyButton } from '@/components/common/copy-button'
+import { bytesToFormGigabytes } from '@/utils/formatByte'
 import { normalizeExpireForEditForm } from '@/utils/userEditDateUtils'
 import SubscriptionModal from '@/components/dialogs/subscription-modal'
 import SetOwnerModal from '@/components/dialogs/set-owner-modal'
@@ -23,6 +24,7 @@ import UserAllIPsModal from '@/components/dialogs/user-all-ips-modal'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { invalidateUserMetricsQueries, upsertUserInUsersCache } from '@/utils/usersCache'
+import { buildSubscriptionFormatUrl, fetchSubscriptionBlobFromUrl, fetchSubscriptionContentFromUrl, resolveSubscriptionPublicUrl } from '@/utils/subscription-config'
 
 type ActionButtonsProps = {
   user: UserResponse
@@ -36,7 +38,7 @@ export interface SubscribeLink {
   icon: React.ComponentType<{ className?: string }>
 }
 
-const DOWNLOAD_ONLY_PROTOCOLS = ['clash', 'clash-meta', 'sing-box']
+const DOWNLOAD_ONLY_PROTOCOLS = ['clash', 'clash-meta', 'sing-box', 'wireguard']
 
 type ActionButtonsModalState = {
   subscribeUrl: string
@@ -158,11 +160,31 @@ const updateModalState = (userId: number, updater: (prev: ActionButtonsModalStat
   notifyGlobalListeners()
 }
 
+const buildUserEditFormValues = (user: UserResponse): UseEditFormValues => ({
+  username: user.username,
+  status: user.status === 'active' || user.status === 'on_hold' || user.status === 'disabled' ? (user.status as UseEditFormValues['status']) : 'active',
+  data_limit: user.data_limit ? bytesToFormGigabytes(Number(user.data_limit)) : 0,
+  expire: normalizeExpireForEditForm(user.expire),
+  note: user.note || '',
+  data_limit_reset_strategy: user.data_limit_reset_strategy || undefined,
+  group_ids: user.group_ids || [],
+  on_hold_expire_duration: user.on_hold_expire_duration || undefined,
+  on_hold_timeout: user.on_hold_timeout || undefined,
+  proxy_settings: user.proxy_settings || undefined,
+  next_plan: user.next_plan
+    ? {
+      user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
+      data_limit: user.next_plan.data_limit ? Math.round(Number(user.next_plan.data_limit)) : 0,
+      expire: user.next_plan.expire ? Math.round(Number(user.next_plan.expire)) : 0,
+      add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
+    }
+    : undefined,
+})
+
 const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, renderActions = true }) => {
-  const [subscribeLinks, setSubscribeLinks] = useState<SubscribeLink[]>([])
   const [isEditModalOpen, setEditModalOpen] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
   const [isActionsMenuOpen, setActionsMenuOpen] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null)
   const queryClient = useQueryClient()
   const { t } = useTranslation()
   const dir = useDirDetection()
@@ -263,82 +285,43 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
 
   // Create form for user editing
   const userForm = useForm<UseEditFormValues>({
-    defaultValues: {
-      username: user.username,
-      status: user.status === 'expired' || user.status === 'limited' ? 'active' : user.status,
-      data_limit: user.data_limit ? Math.round((Number(user.data_limit) / (1024 * 1024 * 1024)) * 100) / 100 : undefined, // Convert bytes to GB
-      expire: normalizeExpireForEditForm(user.expire),
-      note: user.note || '',
-      data_limit_reset_strategy: user.data_limit_reset_strategy || undefined,
-      group_ids: user.group_ids || [], // Add group_ids
-      on_hold_expire_duration: user.on_hold_expire_duration || undefined,
-      on_hold_timeout: user.on_hold_timeout || undefined,
-      proxy_settings: user.proxy_settings || undefined,
-      next_plan: user.next_plan
-        ? {
-          user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
-          data_limit: user.next_plan.data_limit ? Number(user.next_plan.data_limit) : 0,
-          expire: user.next_plan.expire ? Number(user.next_plan.expire) : 0,
-          add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
-        }
-        : undefined,
-    },
+    defaultValues: buildUserEditFormValues(user),
   })
 
   // Update form when user data changes
   useEffect(() => {
-    const values: UseEditFormValues = {
-      username: user.username,
-      status: user.status === 'active' || user.status === 'on_hold' || user.status === 'disabled' ? (user.status as any) : 'active',
-      data_limit: user.data_limit ? Math.round((Number(user.data_limit) / (1024 * 1024 * 1024)) * 100) / 100 : 0,
-      expire: normalizeExpireForEditForm(user.expire),
-      note: user.note || '',
-      data_limit_reset_strategy: user.data_limit_reset_strategy || undefined,
-      group_ids: user.group_ids || [],
-      on_hold_expire_duration: user.on_hold_expire_duration || undefined,
-      on_hold_timeout: user.on_hold_timeout || undefined,
-      proxy_settings: user.proxy_settings || undefined,
-      next_plan: user.next_plan
-        ? {
-          user_template_id: user.next_plan.user_template_id ? Number(user.next_plan.user_template_id) : undefined,
-          data_limit: user.next_plan.data_limit ? Number(user.next_plan.data_limit) : 0,
-          expire: user.next_plan.expire ? Number(user.next_plan.expire) : 0,
-          add_remaining_traffic: user.next_plan.add_remaining_traffic || false,
-        }
-        : undefined,
-    }
+    // Keep background refreshes from clobbering an active edit session.
+    if (isEditModalOpen) return
 
-    // Update form with current values
-    userForm.reset(values)
-  }, [user, userForm])
+    userForm.reset(buildUserEditFormValues(user))
+  }, [user, userForm, isEditModalOpen])
+
+  const subscriptionPublicUrl = useMemo(() => resolveSubscriptionPublicUrl(user.subscription_url), [user.subscription_url])
+
+  const subscribeLinks = useMemo<SubscribeLink[]>(() => {
+    if (!user.subscription_url) return []
+
+    return [
+      { protocol: 'links', link: buildSubscriptionFormatUrl(user.subscription_url, 'links'), icon: ListTree },
+      { protocol: 'links (base64)', link: buildSubscriptionFormatUrl(user.subscription_url, 'links_base64'), icon: Code },
+      { protocol: 'xray', link: buildSubscriptionFormatUrl(user.subscription_url, 'xray'), icon: XrayIcon },
+      { protocol: 'wireguard', link: buildSubscriptionFormatUrl(user.subscription_url, 'wireguard'), icon: WireguardIcon },
+      { protocol: 'clash', link: buildSubscriptionFormatUrl(user.subscription_url, 'clash'), icon: Cat },
+      { protocol: 'clash-meta', link: buildSubscriptionFormatUrl(user.subscription_url, 'clash_meta'), icon: MihomoIcon },
+      { protocol: 'outline', link: buildSubscriptionFormatUrl(user.subscription_url, 'outline'), icon: GlobeLock },
+      { protocol: 'sing-box', link: buildSubscriptionFormatUrl(user.subscription_url, 'sing_box'), icon: SingboxIcon },
+    ]
+  }, [user.subscription_url])
 
   const onOpenSubscriptionModal = useCallback(() => {
     setSubscribeUrl(user.subscription_url ? user.subscription_url : '')
     setShowSubscriptionModal(true)
-  }, [user.subscription_url])
+  }, [setShowSubscriptionModal, setSubscribeUrl, user.subscription_url])
 
   const onCloseSubscriptionModal = useCallback(() => {
     setSubscribeUrl('')
     setShowSubscriptionModal(false)
-  }, [])
-
-  useEffect(() => {
-    if (user.subscription_url) {
-      const subURL = user.subscription_url.startsWith('/') ? window.location.origin + user.subscription_url : user.subscription_url
-
-      const links = [
-        { protocol: 'links', link: `${subURL}/links`, icon: ListTree },
-        { protocol: 'links (base64)', link: `${subURL}/links_base64`, icon: Code },
-        { protocol: 'xray', link: `${subURL}/xray`, icon: XrayIcon },
-        { protocol: 'wireguard', link: `${subURL}/wireguard`, icon: WireguardIcon },
-        { protocol: 'clash', link: `${subURL}/clash`, icon: Cat },
-        { protocol: 'clash-meta', link: `${subURL}/clash_meta`, icon: MihomoIcon },
-        { protocol: 'outline', link: `${subURL}/outline`, icon: GlobeLock },
-        { protocol: 'sing-box', link: `${subURL}/sing_box`, icon: SingboxIcon },
-      ]
-      setSubscribeLinks(links)
-    }
-  }, [user.subscription_url])
+  }, [setShowSubscriptionModal, setSubscribeUrl])
 
   const { copy, copied } = useClipboard({ timeout: 1500 })
 
@@ -371,28 +354,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     }
 
     // Update form with latest user data
-    const values: UseEditFormValues = {
-      username: latestUser.username,
-      status: latestUser.status === 'active' || latestUser.status === 'on_hold' || latestUser.status === 'disabled' ? (latestUser.status as any) : 'active',
-      data_limit: latestUser.data_limit ? Math.round((Number(latestUser.data_limit) / (1024 * 1024 * 1024)) * 100) / 100 : 0,
-      expire: normalizeExpireForEditForm(latestUser.expire),
-      note: latestUser.note || '',
-      data_limit_reset_strategy: latestUser.data_limit_reset_strategy || undefined,
-      group_ids: latestUser.group_ids || [],
-      on_hold_expire_duration: latestUser.on_hold_expire_duration || undefined,
-      on_hold_timeout: latestUser.on_hold_timeout || undefined,
-      proxy_settings: latestUser.proxy_settings || undefined,
-      next_plan: latestUser.next_plan
-        ? {
-          user_template_id: latestUser.next_plan.user_template_id ? Number(latestUser.next_plan.user_template_id) : undefined,
-          data_limit: latestUser.next_plan.data_limit ? Number(latestUser.next_plan.data_limit) : 0,
-          expire: latestUser.next_plan.expire ? Number(latestUser.next_plan.expire) : 0,
-          add_remaining_traffic: latestUser.next_plan.add_remaining_traffic || false,
-        }
-        : undefined,
-    }
-
-    userForm.reset(values)
+    userForm.reset(buildUserEditFormValues(latestUser))
     setSelectedUser(latestUser)
     setEditModalOpen(true)
   }
@@ -491,45 +453,9 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
     alert(`${message}\n\n${content}`)
   }
 
-  const buildDashboardFallbackUrl = (url: string): string | null => {
-    try {
-      const parsedUrl = new URL(url, window.location.origin)
-      if (parsedUrl.origin === window.location.origin) return null
+  const fetchContent = (url: string): Promise<string> => fetchSubscriptionContentFromUrl(url)
 
-      return `${window.location.origin}${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`
-    } catch (error) {
-      console.error('Failed to build fallback url:', error)
-      return null
-    }
-  }
-
-  async function fetchWithDashboardFallback<T>(url: string, parser: (response: Response) => Promise<T>): Promise<T> {
-    const attemptFetch = async (targetUrl: string) => {
-      const response = await fetch(targetUrl)
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-      return parser(response)
-    }
-
-    try {
-      return await attemptFetch(url)
-    } catch (primaryError) {
-      const fallbackUrl = buildDashboardFallbackUrl(url)
-      if (fallbackUrl) {
-        try {
-          return await attemptFetch(fallbackUrl)
-        } catch (fallbackError) {
-          console.error('Fallback fetch failed:', fallbackError)
-        }
-      }
-      throw primaryError
-    }
-  }
-
-  const fetchContent = (url: string): Promise<string> => fetchWithDashboardFallback(url, response => response.text())
-
-  const fetchBlob = (url: string): Promise<Blob> => fetchWithDashboardFallback(url, response => response.blob())
+  const fetchBlob = (url: string): Promise<Blob> => fetchSubscriptionBlobFromUrl(url)
 
   const fetchAndCacheContent = (link: string): Promise<string> => {
     const cachedContent = configContentCacheRef.current[link]
@@ -614,7 +540,8 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `${user.username}-${type}.yaml`
+        const ext = type === 'wireguard' ? 'zip' : 'yaml'
+        a.download = `${user.username}.${ext}`
         document.body.appendChild(a)
         a.click()
         window.URL.revokeObjectURL(url)
@@ -627,9 +554,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   }
 
   const handleCopyOrDownload = (link: string, type: string) => {
-    if (type === 'wireguard') {
-      window.open(link, '_blank')
-    } else if (DOWNLOAD_ONLY_PROTOCOLS.includes(type)) {
+    if (DOWNLOAD_ONLY_PROTOCOLS.includes(type)) {
       handleConfigDownload(link, type)
     } else {
       handleLinksCopy(link, type)
@@ -637,7 +562,10 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
   }
 
   return (
-    <div onClick={renderActions ? (e => e.stopPropagation()) : undefined}>
+    <div
+      onClick={renderActions ? (e => e.stopPropagation()) : undefined}
+      onPointerDown={renderActions ? (e => e.stopPropagation()) : undefined}
+    >
       {renderActions && (
         <div className="flex items-center justify-end">
           <Button size="icon" variant="ghost" onClick={handleEdit} className="md:hidden">
@@ -645,7 +573,7 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
           </Button>
           <TooltipProvider>
             <CopyButton
-              value={user.subscription_url ? (user.subscription_url.startsWith('/') ? window.location.origin + user.subscription_url : user.subscription_url) : ''}
+              value={subscriptionPublicUrl}
               copiedMessage="usersTable.copied"
               defaultMessage="usersTable.copyLink"
               icon="link"
@@ -676,6 +604,18 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
               </DropdownMenu>
               <TooltipContent>{copied ? t('usersTable.copied') : t('usersTable.copyConfigs')}</TooltipContent>
             </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <Button type="button" size="icon" variant="ghost" aria-label={t('qrcodeDialog.title')} onClick={onOpenSubscriptionModal}>
+                    <QrCode className='h-4 w-4' />
+                  </Button>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                {t('qrcodeDialog.title')}
+              </TooltipContent>
+            </Tooltip>
           </TooltipProvider>
           <DropdownMenu modal={false} open={isActionsMenuOpen} onOpenChange={setActionsMenuOpen}>
             <DropdownMenuTrigger asChild>
@@ -695,16 +635,10 @@ const ActionButtons: FC<ActionButtonsProps> = ({ user, isModalHost = true, rende
                 <span>{t('edit')}</span>
               </DropdownMenuItem>
 
-              {/* QR Code */}
-              <DropdownMenuItem onSelect={onOpenSubscriptionModal}>
-                <QrCode className="mr-2 h-4 w-4" />
-                <span>{t('qrcodeDialog.title')}</span>
-              </DropdownMenuItem>
-
               {/* Set Owner: only for sudo admins */}
               {currentAdmin?.is_sudo && (
                 <DropdownMenuItem onSelect={handleSetOwner}>
-                  <User className="mr-2 h-4 w-4" />
+                  <UserCog className="mr-2 h-4 w-4" />
                   <span>{t('setOwnerModal.title')}</span>
                 </DropdownMenuItem>
               )}

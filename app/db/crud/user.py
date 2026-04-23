@@ -202,6 +202,33 @@ async def get_users_with_proxy_settings(
     return list(result.scalars().all())
 
 
+async def get_all_wireguard_peer_ips_raw(
+    db: AsyncSession,
+    *,
+    exclude_user_id: int | None = None,
+) -> dict[int, dict]:
+    """
+    Retrieve only id and proxy_settings for all users (lightweight variant).
+
+    Returns a dict mapping user_id -> {'proxy_settings': ...} for IP pool operations.
+    This avoids loading full ORM objects, related collections, and unnecessary columns.
+
+    Args:
+        db: Database session
+        exclude_user_id: User ID to exclude from results
+
+    Returns:
+        Dict mapping user_id to dict containing proxy_settings
+    """
+    stmt = select(User.id, User.proxy_settings)
+    if exclude_user_id is not None:
+        stmt = stmt.where(User.id != exclude_user_id)
+
+    result = await db.execute(stmt)
+    rows = result.all()
+    return {row[0]: {"proxy_settings": row[1]} for row in rows}
+
+
 UsersSortingOptions = Enum(
     "UsersSortingOptions",
     {
@@ -960,6 +987,16 @@ async def bulk_reset_user_data_usage(db: AsyncSession, users: list[User]) -> lis
     return users
 
 
+def _build_revoked_proxy_settings(db_user: User) -> dict:
+    proxy_settings = ProxyTable()
+    proxy_settings.vless.flow = db_user.proxy_settings.get("vless", {}).get("flow", "")
+    proxy_settings.shadowsocks.method = db_user.proxy_settings.get("shadowsocks", {}).get(
+        "method", "chacha20-ietf-poly1305"
+    )
+    proxy_settings.wireguard.peer_ips = db_user.proxy_settings.get("wireguard", {}).get("peer_ips", []) or []
+    return proxy_settings.dict()
+
+
 async def reset_user_by_next(db: AsyncSession, db_user: User) -> User:
     """
     Resets the data usage of a user based on next user.
@@ -1034,16 +1071,32 @@ async def revoke_user_sub(db: AsyncSession, db_user: User) -> User:
         User: The updated user object.
     """
     db_user.sub_revoked_at = datetime.now(timezone.utc)
-    proxy_settings = ProxyTable()
-    proxy_settings.vless.flow = db_user.proxy_settings.get("vless", {}).get("flow", "")
-    proxy_settings.shadowsocks.method = db_user.proxy_settings.get("shadowsocks", {}).get(
-        "method", "chacha20-ietf-poly1305"
-    )
-    proxy_settings.wireguard.peer_ips = db_user.proxy_settings.get("wireguard", {}).get("peer_ips", []) or []
-    db_user.proxy_settings = proxy_settings.dict()
+    db_user.proxy_settings = _build_revoked_proxy_settings(db_user)
     await db.commit()
     await refresh_and_load_user(db, db_user)
     return db_user
+
+
+async def bulk_revoke_user_sub(db: AsyncSession, users: list[User]) -> list[User]:
+    """
+    Revoke subscriptions for multiple users in a single transaction.
+
+    Args:
+        db (AsyncSession): Database session.
+        users (list[User]): Users whose subscriptions should be revoked.
+
+    Returns:
+        list[User]: The refreshed users.
+    """
+    revoked_at = datetime.now(timezone.utc)
+    for user in users:
+        user.sub_revoked_at = revoked_at
+        user.proxy_settings = _build_revoked_proxy_settings(user)
+
+    await db.commit()
+    for user in users:
+        await refresh_and_load_user(db, user)
+    return users
 
 
 async def user_sub_update(db: AsyncSession, user_id: User, user_agent: str) -> User:
@@ -1276,10 +1329,60 @@ async def set_owner(db: AsyncSession, db_user: User, admin: Admin) -> User:
     Returns:
         User: The updated user object.
     """
+    old_admin = db_user.admin
     db_user.admin = admin
+
+    # Update admin traffic counters
+    if old_admin and old_admin.id != admin.id:
+        old_admin.used_traffic -= db_user.used_traffic
+        admin.used_traffic += db_user.used_traffic
+
     await db.commit()
     await refresh_and_load_user(db, db_user)
     return db_user
+
+
+async def bulk_set_owner(db: AsyncSession, users: list[User], admin: Admin) -> list[User]:
+    """
+    Set the same owner for multiple users in a single transaction.
+
+    Args:
+        db (AsyncSession): Database session.
+        users (list[User]): Users to update.
+        admin (Admin): Admin that should become the owner.
+
+    Returns:
+        list[User]: The refreshed users.
+    """
+    # Group users by old admin to update traffic counters
+    admin_traffic_changes = {}
+    total_traffic_to_add = 0
+
+    for user in users:
+        old_admin = user.admin
+        if old_admin and old_admin.id != admin.id:
+            if old_admin.id not in admin_traffic_changes:
+                admin_traffic_changes[old_admin.id] = 0
+            admin_traffic_changes[old_admin.id] -= user.used_traffic
+        total_traffic_to_add += user.used_traffic
+        user.admin = admin
+
+    # Update old admins' traffic
+    for admin_id, traffic_change in admin_traffic_changes.items():
+        await db.execute(
+            update(Admin).where(Admin.id == admin_id).values(used_traffic=Admin.used_traffic + traffic_change)
+        )
+
+    # Update new admin's traffic
+    if total_traffic_to_add > 0:
+        await db.execute(
+            update(Admin).where(Admin.id == admin.id).values(used_traffic=Admin.used_traffic + total_traffic_to_add)
+        )
+
+    await db.commit()
+    for user in users:
+        await refresh_and_load_user(db, user)
+    return users
 
 
 async def start_users_expire(db: AsyncSession, users: list[User]) -> list[User]:

@@ -3,7 +3,7 @@
  * Do not edit manually.
  * PasarGuardAPI
  * Unified GUI Censorship Resistant Solution
- * OpenAPI spec version: 2.2.0
+ * OpenAPI spec version: 3.0.2
  */
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type {
@@ -254,10 +254,6 @@ export type GetAdminsParams = {
 
 export type Health200 = { [key: string]: unknown }
 
-export type GetManifestParams = {
-  start_url?: string | null
-}
-
 export type XrayNoiseSettingsRandRange = string | null
 
 export interface XrayNoiseSettings {
@@ -463,6 +459,18 @@ export type XHttpSettingsInputXPaddingBytes = string | number | null
 
 export type XHttpSettingsInputNoGrpcHeader = boolean | null
 
+export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const XHttpModes = {
+  auto: 'auto',
+  'packet-up': 'packet-up',
+  'stream-up': 'stream-up',
+  'stream-one': 'stream-one',
+} as const
+
+export type XHttpSettingsInputMode = XHttpModes | null
+
 export interface XHttpSettingsInput {
   mode?: XHttpSettingsInputMode
   no_grpc_header?: XHttpSettingsInputNoGrpcHeader
@@ -485,18 +493,6 @@ export interface XHttpSettingsInput {
   xmux?: XHttpSettingsInputXmux
   download_settings?: XHttpSettingsInputDownloadSettings
 }
-
-export type XHttpModes = (typeof XHttpModes)[keyof typeof XHttpModes]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const XHttpModes = {
-  auto: 'auto',
-  'packet-up': 'packet-up',
-  'stream-up': 'stream-up',
-  'stream-one': 'stream-one',
-} as const
-
-export type XHttpSettingsInputMode = XHttpModes | null
 
 export type WorkerHealthError = string | null
 
@@ -523,6 +519,17 @@ export interface WireGuardSettings {
   peer_ips?: string[]
 }
 
+export interface WireGuardPeerIPsReallocateResponse {
+  wireguard_inbound_tags: number
+  candidates: number
+  updated: number
+  dry_run: boolean
+  sample_usernames: string[]
+  affected_users: number
+}
+
+export type WireGuardHostOverridesDns = string[] | null
+
 export type WireGuardHostOverridesKeepaliveSeconds = number | null
 
 export type WireGuardHostOverridesReserved = string | null
@@ -539,6 +546,7 @@ export interface WireGuardHostOverrides {
   mtu?: WireGuardHostOverridesMtu
   reserved?: WireGuardHostOverridesReserved
   keepalive_seconds?: WireGuardHostOverridesKeepaliveSeconds
+  dns?: WireGuardHostOverridesDns
 }
 
 export interface WebhookInfo {
@@ -1151,6 +1159,12 @@ export interface SubscriptionUserResponse {
   online_at?: SubscriptionUserResponseOnlineAt
 }
 
+export type SubscriptionTemplatesXray = number | null
+
+export interface SubscriptionTemplates {
+  xray?: SubscriptionTemplatesXray
+}
+
 export type SubRuleResponseHeaders = { [key: string]: unknown }
 
 export interface SubRule {
@@ -1304,6 +1318,62 @@ export interface RemoveUsersResponse {
   count: number
 }
 
+/**
+ * Response model for bulk user template deletion
+ */
+export interface RemoveUserTemplatesResponse {
+  templates: string[]
+  count: number
+}
+
+/**
+ * Response model for bulk node deletion
+ */
+export interface RemoveNodesResponse {
+  nodes: string[]
+  count: number
+}
+
+/**
+ * Response model for bulk host deletion
+ */
+export interface RemoveHostsResponse {
+  hosts: string[]
+  count: number
+}
+
+/**
+ * Response model for bulk group deletion
+ */
+export interface RemoveGroupsResponse {
+  groups: string[]
+  count: number
+}
+
+/**
+ * Response model for bulk core deletion
+ */
+export interface RemoveCoresResponse {
+  cores: string[]
+  count: number
+}
+
+/**
+ * Response model for bulk client template deletion
+ */
+export interface RemoveClientTemplatesResponse {
+  templates: string[]
+  count: number
+}
+
+/**
+ * Response model for bulk admin deletion
+ */
+export interface RemoveAdminsResponse {
+  admins: string[]
+  count: number
+}
+
 export interface ProxyTableOutput {
   vmess?: VMessSettings
   vless?: VlessSettings
@@ -1415,19 +1485,6 @@ export type NotificationSettingsInputTelegramChatId = number | null
 
 export type NotificationSettingsInputTelegramApiToken = string | null
 
-export interface NotificationSettingsInput {
-  notify_telegram?: boolean
-  notify_discord?: boolean
-  telegram_api_token?: NotificationSettingsInputTelegramApiToken
-  telegram_chat_id?: NotificationSettingsInputTelegramChatId
-  telegram_topic_id?: NotificationSettingsInputTelegramTopicId
-  discord_webhook_url?: NotificationSettingsInputDiscordWebhookUrl
-  channels?: NotificationChannels
-  proxy_url?: NotificationSettingsInputProxyUrl
-  /** */
-  max_retries: number
-}
-
 export interface NotificationEnable {
   admin?: AdminNotificationEnable
   core?: BaseNotificationEnable
@@ -1438,19 +1495,6 @@ export interface NotificationEnable {
   user_template?: BaseNotificationEnable
   days_left?: boolean
   percentage_reached?: boolean
-}
-
-/**
- * Per-object notification channels
- */
-export interface NotificationChannels {
-  admin?: NotificationChannel
-  core?: NotificationChannel
-  group?: NotificationChannel
-  host?: NotificationChannel
-  node?: NotificationChannel
-  user?: NotificationChannel
-  user_template?: NotificationChannel
 }
 
 export type NotificationChannelDiscordWebhookUrl = string | null
@@ -1466,6 +1510,32 @@ export interface NotificationChannel {
   telegram_chat_id?: NotificationChannelTelegramChatId
   telegram_topic_id?: NotificationChannelTelegramTopicId
   discord_webhook_url?: NotificationChannelDiscordWebhookUrl
+}
+
+/**
+ * Per-object notification channels
+ */
+export interface NotificationChannels {
+  admin?: NotificationChannel
+  core?: NotificationChannel
+  group?: NotificationChannel
+  host?: NotificationChannel
+  node?: NotificationChannel
+  user?: NotificationChannel
+  user_template?: NotificationChannel
+}
+
+export interface NotificationSettingsInput {
+  notify_telegram?: boolean
+  notify_discord?: boolean
+  telegram_api_token?: NotificationSettingsInputTelegramApiToken
+  telegram_chat_id?: NotificationSettingsInputTelegramChatId
+  telegram_topic_id?: NotificationSettingsInputTelegramTopicId
+  discord_webhook_url?: NotificationSettingsInputDiscordWebhookUrl
+  channels?: NotificationChannels
+  proxy_url?: NotificationSettingsInputProxyUrl
+  /** */
+  max_retries: number
 }
 
 export interface NotFound {
@@ -1491,6 +1561,8 @@ export interface NodesResponse {
   total: number
 }
 
+export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
+
 export type NodeUsageStatsListPeriod = Period | null
 
 export interface NodeUsageStatsList {
@@ -1505,8 +1577,6 @@ export interface NodeUsageStat {
   downlink: number
   period_start: string
 }
-
-export type NodeUsageStatsListStats = { [key: string]: NodeUsageStat[] }
 
 export type NodeStatus = (typeof NodeStatus)[keyof typeof NodeStatus]
 
@@ -1674,19 +1744,6 @@ export interface NodeGeoFilesUpdate {
   region?: GeoFilseRegion
 }
 
-export interface NodeCoreUpdate {
-  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
-  core_version?: string
-}
-
-export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const NodeConnectionType = {
-  grpc: 'grpc',
-  rest: 'rest',
-} as const
-
 export interface NodeCreate {
   name: string
   address: string
@@ -1713,6 +1770,19 @@ export interface NodeCreate {
    */
   internal_timeout?: number
 }
+
+export interface NodeCoreUpdate {
+  /** @pattern ^(latest|v?\d+\.\d+\.\d+)$ */
+  core_version?: string
+}
+
+export type NodeConnectionType = (typeof NodeConnectionType)[keyof typeof NodeConnectionType]
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const NodeConnectionType = {
+  grpc: 'grpc',
+  rest: 'rest',
+} as const
 
 export type NextPlanModelExpire = number | null
 
@@ -1810,6 +1880,7 @@ export interface InboundSummary {
 }
 
 export interface HysteriaSettings {
+  /** @minLength 1 */
   auth?: string
 }
 
@@ -1855,19 +1926,24 @@ export interface HTTPException {
 }
 
 /**
- * Lightweight group model with only id and name for performance.
- */
-export interface GroupSimple {
-  id: number
-  name: string
-}
-
-/**
  * Response model for lightweight group list.
  */
 export interface GroupsSimpleResponse {
   groups: GroupSimple[]
   total: number
+}
+
+export interface GroupsResponse {
+  groups: GroupResponse[]
+  total: number
+}
+
+/**
+ * Lightweight group model with only id and name for performance.
+ */
+export interface GroupSimple {
+  id: number
+  name: string
 }
 
 export type GroupResponseInboundTags = string[] | null
@@ -1882,11 +1958,6 @@ export interface GroupResponse {
   is_disabled?: boolean
   id: number
   total_users?: number
-}
-
-export interface GroupsResponse {
-  groups: GroupResponse[]
-  total: number
 }
 
 export type GroupModifyInboundTags = string[] | null
@@ -2006,6 +2077,8 @@ export interface CreateUserFromTemplate {
   username: string
 }
 
+export type CreateHostSubscriptionTemplates = SubscriptionTemplates | null
+
 export type CreateHostWireguardOverrides = WireGuardHostOverrides | null
 
 export type CreateHostVerifyPeerCertByName = string[] | null
@@ -2027,34 +2100,6 @@ export type CreateHostFragmentSettings = FragmentSettings | null
 export type CreateHostMuxSettings = MuxSettingsInput | null
 
 export type CreateHostTransportSettings = TransportSettingsInput | null
-
-export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
-
-export type CreateHostAllowinsecure = boolean | null
-
-export type CreateHostAlpn = ProxyHostALPN[] | null
-
-export type CreateHostPath = string | null
-
-export type CreateHostHost = string[] | null
-
-export type CreateHostSni = string[] | null
-
-export type CreateHostPort = number | null
-
-export type CreateHostInboundTag = string | null
-
-export type CreateHostId = number | null
-
-export type HostSubscriptionTemplatesXray = number | null
-
-export interface HostSubscriptionTemplates {
-  xray?: HostSubscriptionTemplatesXray
-}
-
-export type CreateHostSubscriptionTemplates = HostSubscriptionTemplates | null
 
 export interface CreateHost {
   id?: CreateHostId
@@ -2088,6 +2133,34 @@ export interface CreateHost {
   subscription_templates?: CreateHostSubscriptionTemplates
 }
 
+export type CreateHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type CreateHostHttpHeaders = CreateHostHttpHeadersAnyOf | null
+
+export type CreateHostAllowinsecure = boolean | null
+
+export type CreateHostAlpn = ProxyHostALPN[] | null
+
+export type CreateHostPath = string | null
+
+export type CreateHostHost = string[] | null
+
+export type CreateHostSni = string[] | null
+
+export type CreateHostPort = number | null
+
+export type CreateHostInboundTag = string | null
+
+export type CreateHostId = number | null
+
+/**
+ * Response model for lightweight core list.
+ */
+export interface CoresSimpleResponse {
+  cores: CoreSimple[]
+  total: number
+}
+
 export type CoreType = (typeof CoreType)[keyof typeof CoreType]
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
@@ -2098,26 +2171,15 @@ export const CoreType = {
   singbox: 'singbox',
 } as const
 
+export type CoreSimpleType = CoreType | null
+
 /**
  * Lightweight core model with only id, name and type for performance.
  */
 export interface CoreSimple {
   id: number
   name: string
-  type?: CoreType | null
-}
-
-/**
- * Response model for lightweight core list.
- */
-export interface CoresSimpleResponse {
-  cores: CoreSimple[]
-  total: number
-}
-
-export interface CoreResponseList {
-  count: number
-  cores?: CoreResponse[]
+  type?: CoreSimpleType
 }
 
 export type CoreResponseType = CoreType | null
@@ -2132,6 +2194,11 @@ export interface CoreResponse {
   fallbacks_inbound_tags: string[]
   id: number
   created_at: string
+}
+
+export interface CoreResponseList {
+  count: number
+  cores?: CoreResponse[]
 }
 
 export type CoreCreateFallbacksInboundTags = unknown[] | null
@@ -2248,6 +2315,28 @@ export interface ClashMuxSettings {
   only_tcp?: boolean
 }
 
+/**
+ * Re-seat WireGuard peer IPs (same scoping as BulkUser: users, admins, group_ids, status).
+ */
+export interface BulkWireGuardPeerIPs {
+  confirm?: boolean
+  dry_run?: boolean
+  replace_all?: boolean
+  group_ids?: number[]
+  admins?: number[]
+  users?: number[]
+  status?: UserStatus[]
+}
+
+export interface BulkUsersSetOwner {
+  ids?: number[]
+  admin_username: string
+}
+
+export interface BulkUsersSelection {
+  ids?: number[]
+}
+
 export type BulkUsersProxyMethod = ShadowsocksMethods | null
 
 export type BulkUsersProxyFlow = XTLSFlows | null
@@ -2255,6 +2344,7 @@ export type BulkUsersProxyFlow = XTLSFlows | null
 export interface BulkUsersProxy {
   flow?: BulkUsersProxyFlow
   method?: BulkUsersProxyMethod
+  dry_run?: boolean
   group_ids?: number[]
   admins?: number[]
   users?: number[]
@@ -2287,12 +2377,95 @@ export interface BulkUsersCreateResponse {
   created?: number
 }
 
+export type BulkUsersApplyTemplateNote = string | null
+
+/**
+ * Apply a user template to a selection of existing users (by ID).
+ */
+export interface BulkUsersApplyTemplate {
+  user_template_id: number
+  note?: BulkUsersApplyTemplateNote
+  ids?: number[]
+}
+
+export interface BulkUsersActionResponse {
+  users: string[]
+  count: number
+}
+
+/**
+ * Response model for bulk user template actions.
+ */
+export interface BulkUserTemplatesActionResponse {
+  templates: string[]
+  count: number
+}
+
+/**
+ * Model for bulk user template selection by IDs
+ */
+export interface BulkUserTemplateSelection {
+  ids?: number[]
+}
+
+export type BulkUserExpiredBefore = string | null
+
+export type BulkUserExpiredAfter = string | null
+
 export interface BulkUser {
   amount: number
+  dry_run?: boolean
   group_ids?: number[]
   admins?: number[]
   users?: number[]
   status?: UserStatus[]
+  expired_after?: BulkUserExpiredAfter
+  expired_before?: BulkUserExpiredBefore
+}
+
+/**
+ * Response model for bulk node actions.
+ */
+export interface BulkNodesActionResponse {
+  nodes: string[]
+  count: number
+}
+
+/**
+ * Model for bulk node selection by IDs
+ */
+export interface BulkNodeSelection {
+  ids?: number[]
+}
+
+/**
+ * Response model for bulk host actions.
+ */
+export interface BulkHostsActionResponse {
+  hosts: string[]
+  count: number
+}
+
+/**
+ * Model for bulk host selection by IDs
+ */
+export interface BulkHostSelection {
+  ids?: number[]
+}
+
+/**
+ * Response model for bulk group actions.
+ */
+export interface BulkGroupsActionResponse {
+  groups: string[]
+  count: number
+}
+
+/**
+ * Model for bulk group selection by IDs
+ */
+export interface BulkGroupSelection {
+  ids?: number[]
 }
 
 export interface BulkGroup {
@@ -2300,6 +2473,36 @@ export interface BulkGroup {
   has_group_ids?: number[]
   admins?: number[]
   users?: number[]
+  dry_run?: boolean
+}
+
+/**
+ * Model for bulk core selection by IDs
+ */
+export interface BulkCoreSelection {
+  ids?: number[]
+}
+
+/**
+ * Model for bulk client template selection by IDs
+ */
+export interface BulkClientTemplateSelection {
+  ids?: number[]
+}
+
+/**
+ * Response model for bulk admin actions.
+ */
+export interface BulkAdminsActionResponse {
+  admins: string[]
+  count: number
+}
+
+/**
+ * Model for bulk admin selection by usernames
+ */
+export interface BulkAdminSelection {
+  usernames?: string[]
 }
 
 export interface Brutal {
@@ -2329,6 +2532,8 @@ export interface BaseNotificationEnable {
   delete?: boolean
 }
 
+export type BaseHostSubscriptionTemplates = SubscriptionTemplates | null
+
 export type BaseHostWireguardOverrides = WireGuardHostOverrides | null
 
 export type BaseHostVerifyPeerCertByName = string[] | null
@@ -2351,7 +2556,25 @@ export type BaseHostMuxSettings = MuxSettingsOutput | null
 
 export type BaseHostTransportSettings = TransportSettingsOutput | null
 
-export type BaseHostSubscriptionTemplates = HostSubscriptionTemplates | null
+export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
+
+export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
+
+export type BaseHostAllowinsecure = boolean | null
+
+export type BaseHostAlpn = ProxyHostALPN[] | null
+
+export type BaseHostPath = string | null
+
+export type BaseHostHost = string[] | null
+
+export type BaseHostSni = string[] | null
+
+export type BaseHostPort = number | null
+
+export type BaseHostInboundTag = string | null
+
+export type BaseHostId = number | null
 
 export interface BaseHost {
   id?: BaseHostId
@@ -2384,26 +2607,6 @@ export interface BaseHost {
   wireguard_overrides?: BaseHostWireguardOverrides
   subscription_templates?: BaseHostSubscriptionTemplates
 }
-
-export type BaseHostHttpHeadersAnyOf = { [key: string]: string }
-
-export type BaseHostHttpHeaders = BaseHostHttpHeadersAnyOf | null
-
-export type BaseHostAllowinsecure = boolean | null
-
-export type BaseHostAlpn = ProxyHostALPN[] | null
-
-export type BaseHostPath = string | null
-
-export type BaseHostHost = string[] | null
-
-export type BaseHostSni = string[] | null
-
-export type BaseHostPort = number | null
-
-export type BaseHostInboundTag = string | null
-
-export type BaseHostId = number | null
 
 export type ApplicationOutputDescription = { [key: string]: string }
 
@@ -2664,67 +2867,6 @@ export function useBase<TData = Awaited<ReturnType<typeof base>>, TError = Error
   query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof base>>, TError, TData>>
 }): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getBaseQueryOptions(options)
-
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-
-  query.queryKey = queryOptions.queryKey
-
-  return query
-}
-
-/**
- * Dynamic PWA manifest generator
- * @summary Get Manifest
- */
-export const getManifest = (params?: GetManifestParams, signal?: AbortSignal) => {
-  return orvalFetcher<unknown>({ url: `/manifest.json`, method: 'GET', params, signal })
-}
-
-export const getGetManifestQueryKey = (params?: GetManifestParams) => {
-  return [`/manifest.json`, ...(params ? [params] : [])] as const
-}
-
-export const getGetManifestQueryOptions = <TData = Awaited<ReturnType<typeof getManifest>>, TError = ErrorType<HTTPValidationError>>(
-  params?: GetManifestParams,
-  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getManifest>>, TError, TData>> },
-) => {
-  const { query: queryOptions } = options ?? {}
-
-  const queryKey = queryOptions?.queryKey ?? getGetManifestQueryKey(params)
-
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getManifest>>> = ({ signal }) => getManifest(params, signal)
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof getManifest>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type GetManifestQueryResult = NonNullable<Awaited<ReturnType<typeof getManifest>>>
-export type GetManifestQueryError = ErrorType<HTTPValidationError>
-
-export function useGetManifest<TData = Awaited<ReturnType<typeof getManifest>>, TError = ErrorType<HTTPValidationError>>(
-  params: undefined | GetManifestParams,
-  options: {
-    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getManifest>>, TError, TData>> & Pick<DefinedInitialDataOptions<Awaited<ReturnType<typeof getManifest>>, TError, TData>, 'initialData'>
-  },
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetManifest<TData = Awaited<ReturnType<typeof getManifest>>, TError = ErrorType<HTTPValidationError>>(
-  params?: GetManifestParams,
-  options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getManifest>>, TError, TData>> & Pick<UndefinedInitialDataOptions<Awaited<ReturnType<typeof getManifest>>, TError, TData>, 'initialData'>
-  },
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetManifest<TData = Awaited<ReturnType<typeof getManifest>>, TError = ErrorType<HTTPValidationError>>(
-  params?: GetManifestParams,
-  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getManifest>>, TError, TData>> },
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @summary Get Manifest
- */
-
-export function useGetManifest<TData = Awaited<ReturnType<typeof getManifest>>, TError = ErrorType<HTTPValidationError>>(
-  params?: GetManifestParams,
-  options?: { query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getManifest>>, TError, TData>> },
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetManifestQueryOptions(params, options)
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 
@@ -3461,6 +3603,356 @@ export const useResetAdminUsage = <TData = Awaited<ReturnType<typeof resetAdminU
   mutation?: UseMutationOptions<TData, TError, { username: string }, TContext>
 }): UseMutationResult<TData, TError, { username: string }, TContext> => {
   const mutationOptions = getResetAdminUsageMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Delete selected admins by username.
+ * @summary Bulk Delete Admins
+ */
+export const bulkDeleteAdmins = (bulkAdminSelection: BodyType<BulkAdminSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<RemoveAdminsResponse>({ url: `/api/admins/bulk/delete`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkAdminSelection, signal })
+}
+
+export const getBulkDeleteAdminsMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkDeleteAdmins>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkDeleteAdmins']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDeleteAdmins>>, { data: BodyType<BulkAdminSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkDeleteAdmins(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}
+
+export type BulkDeleteAdminsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteAdmins>>>
+export type BulkDeleteAdminsMutationBody = BodyType<BulkAdminSelection>
+export type BulkDeleteAdminsMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Delete Admins
+ */
+export const useBulkDeleteAdmins = <
+  TData = Awaited<ReturnType<typeof bulkDeleteAdmins>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext> => {
+  const mutationOptions = getBulkDeleteAdminsMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Reset usage for selected admins by username.
+ * @summary Bulk Reset Admins Usage
+ */
+export const bulkResetAdminsUsage = (bulkAdminSelection: BodyType<BulkAdminSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkAdminsActionResponse>({ url: `/api/admins/bulk/reset`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkAdminSelection, signal })
+}
+
+export const getBulkResetAdminsUsageMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkResetAdminsUsage>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkResetAdminsUsage']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkResetAdminsUsage>>, { data: BodyType<BulkAdminSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkResetAdminsUsage(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}
+
+export type BulkResetAdminsUsageMutationResult = NonNullable<Awaited<ReturnType<typeof bulkResetAdminsUsage>>>
+export type BulkResetAdminsUsageMutationBody = BodyType<BulkAdminSelection>
+export type BulkResetAdminsUsageMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Reset Admins Usage
+ */
+export const useBulkResetAdminsUsage = <
+  TData = Awaited<ReturnType<typeof bulkResetAdminsUsage>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext> => {
+  const mutationOptions = getBulkResetAdminsUsageMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Disable selected admins by username.
+ * @summary Bulk Disable Admins
+ */
+export const bulkDisableAdmins = (bulkAdminSelection: BodyType<BulkAdminSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkAdminsActionResponse>({ url: `/api/admins/bulk/disable`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkAdminSelection, signal })
+}
+
+export const getBulkDisableAdminsMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkDisableAdmins>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkDisableAdmins']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDisableAdmins>>, { data: BodyType<BulkAdminSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkDisableAdmins(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}
+
+export type BulkDisableAdminsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDisableAdmins>>>
+export type BulkDisableAdminsMutationBody = BodyType<BulkAdminSelection>
+export type BulkDisableAdminsMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Disable Admins
+ */
+export const useBulkDisableAdmins = <
+  TData = Awaited<ReturnType<typeof bulkDisableAdmins>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext> => {
+  const mutationOptions = getBulkDisableAdminsMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Enable selected admins by username.
+ * @summary Bulk Enable Admins
+ */
+export const bulkEnableAdmins = (bulkAdminSelection: BodyType<BulkAdminSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkAdminsActionResponse>({ url: `/api/admins/bulk/enable`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkAdminSelection, signal })
+}
+
+export const getBulkEnableAdminsMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkEnableAdmins>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkEnableAdmins']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkEnableAdmins>>, { data: BodyType<BulkAdminSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkEnableAdmins(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}
+
+export type BulkEnableAdminsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkEnableAdmins>>>
+export type BulkEnableAdminsMutationBody = BodyType<BulkAdminSelection>
+export type BulkEnableAdminsMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Enable Admins
+ */
+export const useBulkEnableAdmins = <
+  TData = Awaited<ReturnType<typeof bulkEnableAdmins>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext> => {
+  const mutationOptions = getBulkEnableAdminsMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Disable all active users under selected admins.
+ * @summary Bulk Disable All Active Users
+ */
+export const bulkDisableAllActiveUsers = (bulkAdminSelection: BodyType<BulkAdminSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkAdminsActionResponse>({ url: `/api/admins/bulk/users/disable`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkAdminSelection, signal })
+}
+
+export const getBulkDisableAllActiveUsersMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkDisableAllActiveUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkDisableAllActiveUsers']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDisableAllActiveUsers>>, { data: BodyType<BulkAdminSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkDisableAllActiveUsers(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}
+
+export type BulkDisableAllActiveUsersMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDisableAllActiveUsers>>>
+export type BulkDisableAllActiveUsersMutationBody = BodyType<BulkAdminSelection>
+export type BulkDisableAllActiveUsersMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Disable All Active Users
+ */
+export const useBulkDisableAllActiveUsers = <
+  TData = Awaited<ReturnType<typeof bulkDisableAllActiveUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext> => {
+  const mutationOptions = getBulkDisableAllActiveUsersMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Activate all disabled users under selected admins.
+ * @summary Bulk Activate All Disabled Users
+ */
+export const bulkActivateAllDisabledUsers = (bulkAdminSelection: BodyType<BulkAdminSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkAdminsActionResponse>({ url: `/api/admins/bulk/users/activate`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkAdminSelection, signal })
+}
+
+export const getBulkActivateAllDisabledUsersMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkActivateAllDisabledUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkActivateAllDisabledUsers']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkActivateAllDisabledUsers>>, { data: BodyType<BulkAdminSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkActivateAllDisabledUsers(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}
+
+export type BulkActivateAllDisabledUsersMutationResult = NonNullable<Awaited<ReturnType<typeof bulkActivateAllDisabledUsers>>>
+export type BulkActivateAllDisabledUsersMutationBody = BodyType<BulkAdminSelection>
+export type BulkActivateAllDisabledUsersMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Activate All Disabled Users
+ */
+export const useBulkActivateAllDisabledUsers = <
+  TData = Awaited<ReturnType<typeof bulkActivateAllDisabledUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext> => {
+  const mutationOptions = getBulkActivateAllDisabledUsersMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Remove all users under selected admins.
+ * @summary Bulk Remove All Users
+ */
+export const bulkRemoveAllUsers = (bulkAdminSelection: BodyType<BulkAdminSelection>) => {
+  return orvalFetcher<BulkAdminsActionResponse>({ url: `/api/admins/bulk/users`, method: 'DELETE', headers: { 'Content-Type': 'application/json' }, data: bulkAdminSelection })
+}
+
+export const getBulkRemoveAllUsersMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkRemoveAllUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkRemoveAllUsers']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkRemoveAllUsers>>, { data: BodyType<BulkAdminSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkRemoveAllUsers(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}
+
+export type BulkRemoveAllUsersMutationResult = NonNullable<Awaited<ReturnType<typeof bulkRemoveAllUsers>>>
+export type BulkRemoveAllUsersMutationBody = BodyType<BulkAdminSelection>
+export type BulkRemoveAllUsersMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Remove All Users
+ */
+export const useBulkRemoveAllUsers = <
+  TData = Awaited<ReturnType<typeof bulkRemoveAllUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkAdminSelection> }, TContext> => {
+  const mutationOptions = getBulkRemoveAllUsersMutationOptions(options)
 
   return useMutation(mutationOptions)
 }
@@ -4267,6 +4759,156 @@ export const useBulkRemoveUsersFromGroups = <
 }
 
 /**
+ * Delete selected groups by ID.
+ * @summary Bulk Delete Groups
+ */
+export const bulkDeleteGroups = (bulkGroupSelection: BodyType<BulkGroupSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<RemoveGroupsResponse>({ url: `/api/groups/bulk/delete`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkGroupSelection, signal })
+}
+
+export const getBulkDeleteGroupsMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkDeleteGroups>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkGroupSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkDeleteGroups']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDeleteGroups>>, { data: BodyType<BulkGroupSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkDeleteGroups(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkGroupSelection> }, TContext>
+}
+
+export type BulkDeleteGroupsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteGroups>>>
+export type BulkDeleteGroupsMutationBody = BodyType<BulkGroupSelection>
+export type BulkDeleteGroupsMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Delete Groups
+ */
+export const useBulkDeleteGroups = <
+  TData = Awaited<ReturnType<typeof bulkDeleteGroups>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkGroupSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkGroupSelection> }, TContext> => {
+  const mutationOptions = getBulkDeleteGroupsMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Disable selected groups by ID.
+ * @summary Bulk Disable Groups
+ */
+export const bulkDisableGroups = (bulkGroupSelection: BodyType<BulkGroupSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkGroupsActionResponse>({ url: `/api/groups/bulk/disable`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkGroupSelection, signal })
+}
+
+export const getBulkDisableGroupsMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkDisableGroups>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkGroupSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkDisableGroups']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDisableGroups>>, { data: BodyType<BulkGroupSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkDisableGroups(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkGroupSelection> }, TContext>
+}
+
+export type BulkDisableGroupsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDisableGroups>>>
+export type BulkDisableGroupsMutationBody = BodyType<BulkGroupSelection>
+export type BulkDisableGroupsMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Disable Groups
+ */
+export const useBulkDisableGroups = <
+  TData = Awaited<ReturnType<typeof bulkDisableGroups>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkGroupSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkGroupSelection> }, TContext> => {
+  const mutationOptions = getBulkDisableGroupsMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Enable selected groups by ID.
+ * @summary Bulk Enable Groups
+ */
+export const bulkEnableGroups = (bulkGroupSelection: BodyType<BulkGroupSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkGroupsActionResponse>({ url: `/api/groups/bulk/enable`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkGroupSelection, signal })
+}
+
+export const getBulkEnableGroupsMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkEnableGroups>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkGroupSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkEnableGroups']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkEnableGroups>>, { data: BodyType<BulkGroupSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkEnableGroups(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkGroupSelection> }, TContext>
+}
+
+export type BulkEnableGroupsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkEnableGroups>>>
+export type BulkEnableGroupsMutationBody = BodyType<BulkGroupSelection>
+export type BulkEnableGroupsMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Enable Groups
+ */
+export const useBulkEnableGroups = <
+  TData = Awaited<ReturnType<typeof bulkEnableGroups>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkGroupSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkGroupSelection> }, TContext> => {
+  const mutationOptions = getBulkEnableGroupsMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
  * Create a new core configuration.
  * @summary Create Core Config
  */
@@ -4633,6 +5275,56 @@ export const useRestartCore = <TData = Awaited<ReturnType<typeof restartCore>>, 
 }
 
 /**
+ * Delete selected cores by ID.
+ * @summary Bulk Delete Cores
+ */
+export const bulkDeleteCores = (bulkCoreSelection: BodyType<BulkCoreSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<RemoveCoresResponse>({ url: `/api/cores/bulk/delete`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkCoreSelection, signal })
+}
+
+export const getBulkDeleteCoresMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkDeleteCores>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkCoreSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkDeleteCores']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDeleteCores>>, { data: BodyType<BulkCoreSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkDeleteCores(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkCoreSelection> }, TContext>
+}
+
+export type BulkDeleteCoresMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteCores>>>
+export type BulkDeleteCoresMutationBody = BodyType<BulkCoreSelection>
+export type BulkDeleteCoresMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Delete Cores
+ */
+export const useBulkDeleteCores = <
+  TData = Awaited<ReturnType<typeof bulkDeleteCores>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkCoreSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkCoreSelection> }, TContext> => {
+  const mutationOptions = getBulkDeleteCoresMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
  * @summary Create Client Template
  */
 export const createClientTemplate = (clientTemplateCreate: BodyType<ClientTemplateCreate>, signal?: AbortSignal) => {
@@ -4954,6 +5646,62 @@ export function useGetClientTemplatesSimple<TData = Awaited<ReturnType<typeof ge
 }
 
 /**
+ * Delete selected client templates by ID.
+ * @summary Bulk Delete Client Templates
+ */
+export const bulkDeleteClientTemplates = (bulkClientTemplateSelection: BodyType<BulkClientTemplateSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<RemoveClientTemplatesResponse>({
+    url: `/api/client_templates/bulk/delete`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: bulkClientTemplateSelection,
+    signal,
+  })
+}
+
+export const getBulkDeleteClientTemplatesMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkDeleteClientTemplates>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkClientTemplateSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkDeleteClientTemplates']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDeleteClientTemplates>>, { data: BodyType<BulkClientTemplateSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkDeleteClientTemplates(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkClientTemplateSelection> }, TContext>
+}
+
+export type BulkDeleteClientTemplatesMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteClientTemplates>>>
+export type BulkDeleteClientTemplatesMutationBody = BodyType<BulkClientTemplateSelection>
+export type BulkDeleteClientTemplatesMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Delete Client Templates
+ */
+export const useBulkDeleteClientTemplates = <
+  TData = Awaited<ReturnType<typeof bulkDeleteClientTemplates>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkClientTemplateSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkClientTemplateSelection> }, TContext> => {
+  const mutationOptions = getBulkDeleteClientTemplatesMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
  * get host by **id**
  * @summary Get Host
  */
@@ -5249,6 +5997,156 @@ export const useCreateHost = <TData = Awaited<ReturnType<typeof createHost>>, TE
   mutation?: UseMutationOptions<TData, TError, { data: BodyType<CreateHost> }, TContext>
 }): UseMutationResult<TData, TError, { data: BodyType<CreateHost> }, TContext> => {
   const mutationOptions = getCreateHostMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Delete selected hosts by ID.
+ * @summary Bulk Delete Hosts
+ */
+export const bulkDeleteHosts = (bulkHostSelection: BodyType<BulkHostSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<RemoveHostsResponse>({ url: `/api/hosts/bulk/delete`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkHostSelection, signal })
+}
+
+export const getBulkDeleteHostsMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkDeleteHosts>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkHostSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkDeleteHosts']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDeleteHosts>>, { data: BodyType<BulkHostSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkDeleteHosts(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkHostSelection> }, TContext>
+}
+
+export type BulkDeleteHostsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteHosts>>>
+export type BulkDeleteHostsMutationBody = BodyType<BulkHostSelection>
+export type BulkDeleteHostsMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Delete Hosts
+ */
+export const useBulkDeleteHosts = <
+  TData = Awaited<ReturnType<typeof bulkDeleteHosts>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkHostSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkHostSelection> }, TContext> => {
+  const mutationOptions = getBulkDeleteHostsMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Disable selected hosts by ID.
+ * @summary Bulk Disable Hosts
+ */
+export const bulkDisableHosts = (bulkHostSelection: BodyType<BulkHostSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkHostsActionResponse>({ url: `/api/hosts/bulk/disable`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkHostSelection, signal })
+}
+
+export const getBulkDisableHostsMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkDisableHosts>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkHostSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkDisableHosts']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDisableHosts>>, { data: BodyType<BulkHostSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkDisableHosts(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkHostSelection> }, TContext>
+}
+
+export type BulkDisableHostsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDisableHosts>>>
+export type BulkDisableHostsMutationBody = BodyType<BulkHostSelection>
+export type BulkDisableHostsMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Disable Hosts
+ */
+export const useBulkDisableHosts = <
+  TData = Awaited<ReturnType<typeof bulkDisableHosts>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkHostSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkHostSelection> }, TContext> => {
+  const mutationOptions = getBulkDisableHostsMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Enable selected hosts by ID.
+ * @summary Bulk Enable Hosts
+ */
+export const bulkEnableHosts = (bulkHostSelection: BodyType<BulkHostSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkHostsActionResponse>({ url: `/api/hosts/bulk/enable`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkHostSelection, signal })
+}
+
+export const getBulkEnableHostsMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkEnableHosts>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkHostSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkEnableHosts']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkEnableHosts>>, { data: BodyType<BulkHostSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkEnableHosts(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkHostSelection> }, TContext>
+}
+
+export type BulkEnableHostsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkEnableHosts>>>
+export type BulkEnableHostsMutationBody = BodyType<BulkHostSelection>
+export type BulkEnableHostsMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Enable Hosts
+ */
+export const useBulkEnableHosts = <
+  TData = Awaited<ReturnType<typeof bulkEnableHosts>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkHostSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkHostSelection> }, TContext> => {
+  const mutationOptions = getBulkEnableHostsMutationOptions(options)
 
   return useMutation(mutationOptions)
 }
@@ -6480,6 +7378,306 @@ export const useClearUsageData = <TData = Awaited<ReturnType<typeof clearUsageDa
 }
 
 /**
+ * Delete selected nodes by ID.
+ * @summary Bulk Delete Nodes
+ */
+export const bulkDeleteNodes = (bulkNodeSelection: BodyType<BulkNodeSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<RemoveNodesResponse>({ url: `/api/nodes/bulk/delete`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkNodeSelection, signal })
+}
+
+export const getBulkDeleteNodesMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkDeleteNodes>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkDeleteNodes']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDeleteNodes>>, { data: BodyType<BulkNodeSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkDeleteNodes(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}
+
+export type BulkDeleteNodesMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteNodes>>>
+export type BulkDeleteNodesMutationBody = BodyType<BulkNodeSelection>
+export type BulkDeleteNodesMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Delete Nodes
+ */
+export const useBulkDeleteNodes = <
+  TData = Awaited<ReturnType<typeof bulkDeleteNodes>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext> => {
+  const mutationOptions = getBulkDeleteNodesMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Disable selected nodes by ID.
+ * @summary Bulk Disable Nodes
+ */
+export const bulkDisableNodes = (bulkNodeSelection: BodyType<BulkNodeSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkNodesActionResponse>({ url: `/api/nodes/bulk/disable`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkNodeSelection, signal })
+}
+
+export const getBulkDisableNodesMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkDisableNodes>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkDisableNodes']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDisableNodes>>, { data: BodyType<BulkNodeSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkDisableNodes(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}
+
+export type BulkDisableNodesMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDisableNodes>>>
+export type BulkDisableNodesMutationBody = BodyType<BulkNodeSelection>
+export type BulkDisableNodesMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Disable Nodes
+ */
+export const useBulkDisableNodes = <
+  TData = Awaited<ReturnType<typeof bulkDisableNodes>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext> => {
+  const mutationOptions = getBulkDisableNodesMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Enable selected nodes by ID.
+ * @summary Bulk Enable Nodes
+ */
+export const bulkEnableNodes = (bulkNodeSelection: BodyType<BulkNodeSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkNodesActionResponse>({ url: `/api/nodes/bulk/enable`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkNodeSelection, signal })
+}
+
+export const getBulkEnableNodesMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkEnableNodes>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkEnableNodes']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkEnableNodes>>, { data: BodyType<BulkNodeSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkEnableNodes(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}
+
+export type BulkEnableNodesMutationResult = NonNullable<Awaited<ReturnType<typeof bulkEnableNodes>>>
+export type BulkEnableNodesMutationBody = BodyType<BulkNodeSelection>
+export type BulkEnableNodesMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Enable Nodes
+ */
+export const useBulkEnableNodes = <
+  TData = Awaited<ReturnType<typeof bulkEnableNodes>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext> => {
+  const mutationOptions = getBulkEnableNodesMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Reset usage for selected nodes by ID.
+ * @summary Bulk Reset Nodes Usage
+ */
+export const bulkResetNodesUsage = (bulkNodeSelection: BodyType<BulkNodeSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkNodesActionResponse>({ url: `/api/nodes/bulk/reset`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkNodeSelection, signal })
+}
+
+export const getBulkResetNodesUsageMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkResetNodesUsage>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkResetNodesUsage']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkResetNodesUsage>>, { data: BodyType<BulkNodeSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkResetNodesUsage(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}
+
+export type BulkResetNodesUsageMutationResult = NonNullable<Awaited<ReturnType<typeof bulkResetNodesUsage>>>
+export type BulkResetNodesUsageMutationBody = BodyType<BulkNodeSelection>
+export type BulkResetNodesUsageMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Reset Nodes Usage
+ */
+export const useBulkResetNodesUsage = <
+  TData = Awaited<ReturnType<typeof bulkResetNodesUsage>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext> => {
+  const mutationOptions = getBulkResetNodesUsageMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Reconnect selected nodes by ID.
+ * @summary Bulk Reconnect Nodes
+ */
+export const bulkReconnectNodes = (bulkNodeSelection: BodyType<BulkNodeSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkNodesActionResponse>({ url: `/api/nodes/bulk/reconnect`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkNodeSelection, signal })
+}
+
+export const getBulkReconnectNodesMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkReconnectNodes>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkReconnectNodes']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkReconnectNodes>>, { data: BodyType<BulkNodeSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkReconnectNodes(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}
+
+export type BulkReconnectNodesMutationResult = NonNullable<Awaited<ReturnType<typeof bulkReconnectNodes>>>
+export type BulkReconnectNodesMutationBody = BodyType<BulkNodeSelection>
+export type BulkReconnectNodesMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Reconnect Nodes
+ */
+export const useBulkReconnectNodes = <
+  TData = Awaited<ReturnType<typeof bulkReconnectNodes>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext> => {
+  const mutationOptions = getBulkReconnectNodesMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Update selected nodes by ID.
+ * @summary Bulk Update Nodes
+ */
+export const bulkUpdateNodes = (bulkNodeSelection: BodyType<BulkNodeSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkNodesActionResponse>({ url: `/api/nodes/bulk/update`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkNodeSelection, signal })
+}
+
+export const getBulkUpdateNodesMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkUpdateNodes>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkUpdateNodes']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkUpdateNodes>>, { data: BodyType<BulkNodeSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkUpdateNodes(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}
+
+export type BulkUpdateNodesMutationResult = NonNullable<Awaited<ReturnType<typeof bulkUpdateNodes>>>
+export type BulkUpdateNodesMutationBody = BodyType<BulkNodeSelection>
+export type BulkUpdateNodesMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Update Nodes
+ */
+export const useBulkUpdateNodes = <
+  TData = Awaited<ReturnType<typeof bulkUpdateNodes>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkNodeSelection> }, TContext> => {
+  const mutationOptions = getBulkUpdateNodesMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
  * Create a new user
 
 - **username**: 3 to 32 characters, can include a-z, 0-9, and underscores.
@@ -7436,6 +8634,306 @@ export const useDeleteExpiredUsers = <TData = Awaited<ReturnType<typeof deleteEx
 }
 
 /**
+ * Delete selected users by ID.
+ * @summary Bulk Delete Users
+ */
+export const bulkDeleteUsers = (bulkUsersSelection: BodyType<BulkUsersSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<RemoveUsersResponse>({ url: `/api/users/bulk/delete`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUsersSelection, signal })
+}
+
+export const getBulkDeleteUsersMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkDeleteUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkDeleteUsers']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDeleteUsers>>, { data: BodyType<BulkUsersSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkDeleteUsers(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext>
+}
+
+export type BulkDeleteUsersMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteUsers>>>
+export type BulkDeleteUsersMutationBody = BodyType<BulkUsersSelection>
+export type BulkDeleteUsersMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Delete Users
+ */
+export const useBulkDeleteUsers = <
+  TData = Awaited<ReturnType<typeof bulkDeleteUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext> => {
+  const mutationOptions = getBulkDeleteUsersMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Reset usage for selected users by ID.
+ * @summary Bulk Reset Users Data Usage
+ */
+export const bulkResetUsersDataUsage = (bulkUsersSelection: BodyType<BulkUsersSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkUsersActionResponse>({ url: `/api/users/bulk/reset`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUsersSelection, signal })
+}
+
+export const getBulkResetUsersDataUsageMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkResetUsersDataUsage>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkResetUsersDataUsage']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkResetUsersDataUsage>>, { data: BodyType<BulkUsersSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkResetUsersDataUsage(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext>
+}
+
+export type BulkResetUsersDataUsageMutationResult = NonNullable<Awaited<ReturnType<typeof bulkResetUsersDataUsage>>>
+export type BulkResetUsersDataUsageMutationBody = BodyType<BulkUsersSelection>
+export type BulkResetUsersDataUsageMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Reset Users Data Usage
+ */
+export const useBulkResetUsersDataUsage = <
+  TData = Awaited<ReturnType<typeof bulkResetUsersDataUsage>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext> => {
+  const mutationOptions = getBulkResetUsersDataUsageMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Disable selected users by ID.
+ * @summary Bulk Disable Users
+ */
+export const bulkDisableUsers = (bulkUsersSelection: BodyType<BulkUsersSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkUsersActionResponse>({ url: `/api/users/bulk/disable`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUsersSelection, signal })
+}
+
+export const getBulkDisableUsersMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkDisableUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkDisableUsers']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDisableUsers>>, { data: BodyType<BulkUsersSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkDisableUsers(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext>
+}
+
+export type BulkDisableUsersMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDisableUsers>>>
+export type BulkDisableUsersMutationBody = BodyType<BulkUsersSelection>
+export type BulkDisableUsersMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Disable Users
+ */
+export const useBulkDisableUsers = <
+  TData = Awaited<ReturnType<typeof bulkDisableUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext> => {
+  const mutationOptions = getBulkDisableUsersMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Enable selected users by ID.
+ * @summary Bulk Enable Users
+ */
+export const bulkEnableUsers = (bulkUsersSelection: BodyType<BulkUsersSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkUsersActionResponse>({ url: `/api/users/bulk/enable`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUsersSelection, signal })
+}
+
+export const getBulkEnableUsersMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkEnableUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkEnableUsers']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkEnableUsers>>, { data: BodyType<BulkUsersSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkEnableUsers(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext>
+}
+
+export type BulkEnableUsersMutationResult = NonNullable<Awaited<ReturnType<typeof bulkEnableUsers>>>
+export type BulkEnableUsersMutationBody = BodyType<BulkUsersSelection>
+export type BulkEnableUsersMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Enable Users
+ */
+export const useBulkEnableUsers = <
+  TData = Awaited<ReturnType<typeof bulkEnableUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext> => {
+  const mutationOptions = getBulkEnableUsersMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Revoke subscriptions for selected users by ID.
+ * @summary Bulk Revoke Users Subscription
+ */
+export const bulkRevokeUsersSubscription = (bulkUsersSelection: BodyType<BulkUsersSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkUsersActionResponse>({ url: `/api/users/bulk/revoke_sub`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUsersSelection, signal })
+}
+
+export const getBulkRevokeUsersSubscriptionMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkRevokeUsersSubscription>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkRevokeUsersSubscription']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkRevokeUsersSubscription>>, { data: BodyType<BulkUsersSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkRevokeUsersSubscription(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext>
+}
+
+export type BulkRevokeUsersSubscriptionMutationResult = NonNullable<Awaited<ReturnType<typeof bulkRevokeUsersSubscription>>>
+export type BulkRevokeUsersSubscriptionMutationBody = BodyType<BulkUsersSelection>
+export type BulkRevokeUsersSubscriptionMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Revoke Users Subscription
+ */
+export const useBulkRevokeUsersSubscription = <
+  TData = Awaited<ReturnType<typeof bulkRevokeUsersSubscription>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkUsersSelection> }, TContext> => {
+  const mutationOptions = getBulkRevokeUsersSubscriptionMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Set a new owner for selected users by ID.
+ * @summary Bulk Set Owner
+ */
+export const bulkSetOwner = (bulkUsersSetOwner: BodyType<BulkUsersSetOwner>) => {
+  return orvalFetcher<BulkUsersActionResponse>({ url: `/api/users/bulk/set_owner`, method: 'PUT', headers: { 'Content-Type': 'application/json' }, data: bulkUsersSetOwner })
+}
+
+export const getBulkSetOwnerMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkSetOwner>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSetOwner> }, TContext>
+}) => {
+  const mutationKey = ['bulkSetOwner']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkSetOwner>>, { data: BodyType<BulkUsersSetOwner> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkSetOwner(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSetOwner> }, TContext>
+}
+
+export type BulkSetOwnerMutationResult = NonNullable<Awaited<ReturnType<typeof bulkSetOwner>>>
+export type BulkSetOwnerMutationBody = BodyType<BulkUsersSetOwner>
+export type BulkSetOwnerMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Set Owner
+ */
+export const useBulkSetOwner = <
+  TData = Awaited<ReturnType<typeof bulkSetOwner>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersSetOwner> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkUsersSetOwner> }, TContext> => {
+  const mutationOptions = getBulkSetOwnerMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
  * @summary Create User From Template
  */
 export const createUserFromTemplate = (createUserFromTemplate: BodyType<CreateUserFromTemplate>, signal?: AbortSignal) => {
@@ -7537,6 +9035,56 @@ export const useBulkCreateUsersFromTemplate = <
 }
 
 /**
+ * Apply a user template to selected existing users by ID.
+ * @summary Bulk Apply Template To Users
+ */
+export const bulkApplyTemplateToUsers = (bulkUsersApplyTemplate: BodyType<BulkUsersApplyTemplate>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkUsersActionResponse>({ url: `/api/users/bulk/apply_template`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUsersApplyTemplate, signal })
+}
+
+export const getBulkApplyTemplateToUsersMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkApplyTemplateToUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersApplyTemplate> }, TContext>
+}) => {
+  const mutationKey = ['bulkApplyTemplateToUsers']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkApplyTemplateToUsers>>, { data: BodyType<BulkUsersApplyTemplate> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkApplyTemplateToUsers(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkUsersApplyTemplate> }, TContext>
+}
+
+export type BulkApplyTemplateToUsersMutationResult = NonNullable<Awaited<ReturnType<typeof bulkApplyTemplateToUsers>>>
+export type BulkApplyTemplateToUsersMutationBody = BodyType<BulkUsersApplyTemplate>
+export type BulkApplyTemplateToUsersMutationError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Apply Template To Users
+ */
+export const useBulkApplyTemplateToUsers = <
+  TData = Awaited<ReturnType<typeof bulkApplyTemplateToUsers>>,
+  TError = ErrorType<HTTPException | Unauthorized | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersApplyTemplate> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkUsersApplyTemplate> }, TContext> => {
+  const mutationOptions = getBulkApplyTemplateToUsersMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
  * @summary Modify User With Template
  */
 export const modifyUserWithTemplate = (username: string, modifyUserByTemplate: BodyType<ModifyUserByTemplate>) => {
@@ -7589,6 +9137,8 @@ export const useModifyUserWithTemplate = <TData = Awaited<ReturnType<typeof modi
 - **admins**: Optional list of admin IDs — their users will be targeted
 - **status**: Optional status to filter users (e.g., "expired", "active"), Empty means no filtering
 - **group_ids**: Optional list of group IDs to filter users by their group membership
+- **expired_after**: Optional UTC datetime to filter users who expired after this date (works only if "expired" status is selected)
+- **expired_before**: Optional UTC datetime to filter users who expired before this date (works only if "expired" status is selected)
  * @summary Bulk sum/sub to expire of users
  */
 export const bulkModifyUsersExpire = (bulkUser: BodyType<BulkUser>, signal?: AbortSignal) => {
@@ -7641,6 +9191,8 @@ export const useBulkModifyUsersExpire = <TData = Awaited<ReturnType<typeof bulkM
 - **admins**: Optional list of admin IDs — their users will be targeted
 - **status**: Optional status to filter users (e.g., "expired", "active"), Empty means no filtering
 - **group_ids**: Optional list of group IDs to filter users by their group membership
+- **expired_after**: Optional UTC datetime to filter users who expired after this date (works only if "expired" status is selected)
+- **expired_before**: Optional UTC datetime to filter users who expired before this date (works only if "expired" status is selected)
  * @summary Bulk sum/sub to data limit of users
  */
 export const bulkModifyUsersDatalimit = (bulkUser: BodyType<BulkUser>, signal?: AbortSignal) => {
@@ -7730,6 +9282,62 @@ export const useBulkModifyUsersProxySettings = <
   mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUsersProxy> }, TContext>
 }): UseMutationResult<TData, TError, { data: BodyType<BulkUsersProxy> }, TContext> => {
   const mutationOptions = getBulkModifyUsersProxySettingsMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Same scoping as other bulk user actions (users, admins, group_ids, optional status filter). Non-sudo admins only affect their own users.
+ * @summary Bulk reallocate WireGuard peer IPs
+ */
+export const bulkReallocateWireguardPeerIps = (bulkWireGuardPeerIPs: BodyType<BulkWireGuardPeerIPs>, signal?: AbortSignal) => {
+  return orvalFetcher<WireGuardPeerIPsReallocateResponse>({
+    url: `/api/users/bulk/wireguard/reallocate-peer-ips`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: bulkWireGuardPeerIPs,
+    signal,
+  })
+}
+
+export const getBulkReallocateWireguardPeerIpsMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkReallocateWireguardPeerIps>>,
+  TError = ErrorType<Unauthorized | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkWireGuardPeerIPs> }, TContext>
+}) => {
+  const mutationKey = ['bulkReallocateWireguardPeerIps']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkReallocateWireguardPeerIps>>, { data: BodyType<BulkWireGuardPeerIPs> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkReallocateWireguardPeerIps(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkWireGuardPeerIPs> }, TContext>
+}
+
+export type BulkReallocateWireguardPeerIpsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkReallocateWireguardPeerIps>>>
+export type BulkReallocateWireguardPeerIpsMutationBody = BodyType<BulkWireGuardPeerIPs>
+export type BulkReallocateWireguardPeerIpsMutationError = ErrorType<Unauthorized | HTTPValidationError>
+
+/**
+ * @summary Bulk reallocate WireGuard peer IPs
+ */
+export const useBulkReallocateWireguardPeerIps = <
+  TData = Awaited<ReturnType<typeof bulkReallocateWireguardPeerIps>>,
+  TError = ErrorType<Unauthorized | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkWireGuardPeerIPs> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkWireGuardPeerIPs> }, TContext> => {
+  const mutationOptions = getBulkReallocateWireguardPeerIpsMutationOptions(options)
 
   return useMutation(mutationOptions)
 }
@@ -8384,4 +9992,166 @@ export function useGetUserTemplatesSimple<TData = Awaited<ReturnType<typeof getU
   query.queryKey = queryOptions.queryKey
 
   return query
+}
+
+/**
+ * Delete selected user templates by ID.
+ * @summary Bulk Delete User Templates
+ */
+export const bulkDeleteUserTemplates = (bulkUserTemplateSelection: BodyType<BulkUserTemplateSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<RemoveUserTemplatesResponse>({ url: `/api/user_templates/bulk/delete`, method: 'POST', headers: { 'Content-Type': 'application/json' }, data: bulkUserTemplateSelection, signal })
+}
+
+export const getBulkDeleteUserTemplatesMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkDeleteUserTemplates>>,
+  TError = ErrorType<HTTPException | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUserTemplateSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkDeleteUserTemplates']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDeleteUserTemplates>>, { data: BodyType<BulkUserTemplateSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkDeleteUserTemplates(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkUserTemplateSelection> }, TContext>
+}
+
+export type BulkDeleteUserTemplatesMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteUserTemplates>>>
+export type BulkDeleteUserTemplatesMutationBody = BodyType<BulkUserTemplateSelection>
+export type BulkDeleteUserTemplatesMutationError = ErrorType<HTTPException | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Delete User Templates
+ */
+export const useBulkDeleteUserTemplates = <
+  TData = Awaited<ReturnType<typeof bulkDeleteUserTemplates>>,
+  TError = ErrorType<HTTPException | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUserTemplateSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkUserTemplateSelection> }, TContext> => {
+  const mutationOptions = getBulkDeleteUserTemplatesMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Disable selected user templates by ID.
+ * @summary Bulk Disable User Templates
+ */
+export const bulkDisableUserTemplates = (bulkUserTemplateSelection: BodyType<BulkUserTemplateSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkUserTemplatesActionResponse>({
+    url: `/api/user_templates/bulk/disable`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: bulkUserTemplateSelection,
+    signal,
+  })
+}
+
+export const getBulkDisableUserTemplatesMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkDisableUserTemplates>>,
+  TError = ErrorType<HTTPException | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUserTemplateSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkDisableUserTemplates']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDisableUserTemplates>>, { data: BodyType<BulkUserTemplateSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkDisableUserTemplates(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkUserTemplateSelection> }, TContext>
+}
+
+export type BulkDisableUserTemplatesMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDisableUserTemplates>>>
+export type BulkDisableUserTemplatesMutationBody = BodyType<BulkUserTemplateSelection>
+export type BulkDisableUserTemplatesMutationError = ErrorType<HTTPException | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Disable User Templates
+ */
+export const useBulkDisableUserTemplates = <
+  TData = Awaited<ReturnType<typeof bulkDisableUserTemplates>>,
+  TError = ErrorType<HTTPException | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUserTemplateSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkUserTemplateSelection> }, TContext> => {
+  const mutationOptions = getBulkDisableUserTemplatesMutationOptions(options)
+
+  return useMutation(mutationOptions)
+}
+
+/**
+ * Enable selected user templates by ID.
+ * @summary Bulk Enable User Templates
+ */
+export const bulkEnableUserTemplates = (bulkUserTemplateSelection: BodyType<BulkUserTemplateSelection>, signal?: AbortSignal) => {
+  return orvalFetcher<BulkUserTemplatesActionResponse>({
+    url: `/api/user_templates/bulk/enable`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    data: bulkUserTemplateSelection,
+    signal,
+  })
+}
+
+export const getBulkEnableUserTemplatesMutationOptions = <
+  TData = Awaited<ReturnType<typeof bulkEnableUserTemplates>>,
+  TError = ErrorType<HTTPException | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUserTemplateSelection> }, TContext>
+}) => {
+  const mutationKey = ['bulkEnableUserTemplates']
+  const { mutation: mutationOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } }
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkEnableUserTemplates>>, { data: BodyType<BulkUserTemplateSelection> }> = props => {
+    const { data } = props ?? {}
+
+    return bulkEnableUserTemplates(data)
+  }
+
+  return { mutationFn, ...mutationOptions } as UseMutationOptions<TData, TError, { data: BodyType<BulkUserTemplateSelection> }, TContext>
+}
+
+export type BulkEnableUserTemplatesMutationResult = NonNullable<Awaited<ReturnType<typeof bulkEnableUserTemplates>>>
+export type BulkEnableUserTemplatesMutationBody = BodyType<BulkUserTemplateSelection>
+export type BulkEnableUserTemplatesMutationError = ErrorType<HTTPException | Forbidden | NotFound | HTTPValidationError>
+
+/**
+ * @summary Bulk Enable User Templates
+ */
+export const useBulkEnableUserTemplates = <
+  TData = Awaited<ReturnType<typeof bulkEnableUserTemplates>>,
+  TError = ErrorType<HTTPException | Forbidden | NotFound | HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<TData, TError, { data: BodyType<BulkUserTemplateSelection> }, TContext>
+}): UseMutationResult<TData, TError, { data: BodyType<BulkUserTemplateSelection> }, TContext> => {
+  const mutationOptions = getBulkEnableUserTemplatesMutationOptions(options)
+
+  return useMutation(mutationOptions)
 }

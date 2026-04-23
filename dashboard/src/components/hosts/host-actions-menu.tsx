@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
-import { Copy, MoreVertical, Pencil, Power, Trash2 } from 'lucide-react'
+import { Copy, MoreVertical, Pencil, Power, PowerOff, Trash2 } from 'lucide-react'
 import { BaseHost, modifyHost, removeHost } from '@/service/api'
 import { toast } from 'sonner'
 import useDirDetection from '@/hooks/use-dir-detection'
@@ -111,6 +111,7 @@ export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChang
   }
 
   const handleDeleteClick = (event: Event) => {
+    event.preventDefault()
     event.stopPropagation()
     setDeleteDialogOpen(true)
   }
@@ -147,21 +148,11 @@ export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChang
     <div className={cn(className)} onClick={e => e.stopPropagation()}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon">
+          <Button type="button" variant="ghost" size="icon">
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align={dir === 'rtl' ? 'start' : 'end'}>
-          <DropdownMenuItem
-            onSelect={e => {
-              e.stopPropagation()
-              handleToggleStatus()
-            }}
-          >
-            <Power className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
-            {host?.is_disabled ? t('enable') : t('disable')}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={e => {
               e.stopPropagation()
@@ -174,12 +165,22 @@ export default function HostActionsMenu({ host, onEdit, onDuplicate, onDataChang
           <DropdownMenuItem
             onSelect={e => {
               e.stopPropagation()
+              handleToggleStatus()
+            }}
+          >
+            {host?.is_disabled ? <Power className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} /> : <PowerOff className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />}
+            {host?.is_disabled ? t('enable') : t('disable')}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={e => {
+              e.stopPropagation()
               onDuplicate(host)
             }}
           >
             <Copy className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
             {t('duplicate')}
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={handleDeleteClick} className="text-destructive">
             <Trash2 className={cn('h-4 w-4', dir === 'rtl' ? 'ml-2' : 'mr-2')} />
             {t('delete')}

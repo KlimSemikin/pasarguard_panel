@@ -1,9 +1,9 @@
 from enum import Enum
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import CoreConfig
+from app.db.models import CoreConfig, Node
 from app.models.core import CoreCreate
 
 CoreSortingOptionsSimple = Enum(
@@ -13,6 +13,8 @@ CoreSortingOptionsSimple = Enum(
         "-id": CoreConfig.id.desc(),
         "name": CoreConfig.name.asc(),
         "-name": CoreConfig.name.desc(),
+        "created_at": CoreConfig.created_at.asc(),
+        "-created_at": CoreConfig.created_at.desc(),
     },
 )
 
@@ -105,7 +107,7 @@ async def get_core_configs(db: AsyncSession, offset: int = None, limit: int = No
             - list[CoreConfig]: A list of CoreConfig objects
             - int: The total count of core configurations
     """
-    query = select(CoreConfig)
+    query = select(CoreConfig).order_by(CoreConfig.created_at.asc())
     if offset:
         query = query.offset(offset)
     if limit:
@@ -150,6 +152,8 @@ async def get_cores_simple(
             else:
                 sort_list.append(s.value)
         stmt = stmt.order_by(*sort_list)
+    else:
+        stmt = stmt.order_by(CoreConfig.created_at.asc())
 
     # Get count BEFORE pagination (always)
     count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -169,3 +173,19 @@ async def get_cores_simple(
     rows = result.all()
 
     return rows, total
+
+
+async def remove_cores(db: AsyncSession, core_ids: list[int]) -> None:
+    """
+    Removes multiple cores from the database by ID.
+
+    Args:
+        db (AsyncSession): Database session.
+        core_ids (list[int]): List of core IDs to remove.
+    """
+    if not core_ids:
+        return
+
+    await db.execute(update(Node).where(Node.core_config_id.in_(core_ids)).values(core_config_id=None))
+    await db.execute(delete(CoreConfig).where(CoreConfig.id.in_(core_ids)))
+    await db.commit()

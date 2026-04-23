@@ -24,7 +24,6 @@ from tests.api.helpers import (
     delete_group,
     delete_user,
     delete_user_template,
-    get_inbounds,
     unique_name,
 )
 
@@ -357,7 +356,7 @@ def test_wireguard_subscription_outputs_are_consistent(access_token):
         assert query["publickey"] == [interface_public_key]
         assert "address" in query
         dynamic_address = query["address"][0]
-        assert dynamic_address.startswith("10.30.0.")
+        assert dynamic_address == user["proxy_settings"]["wireguard"]["peer_ips"][0]
         assert dynamic_address.endswith("/32")
         assert query["allowedips"] == ["0.0.0.0/0,::/0"]
         assert unquote(parsed.fragment) == expected_remark
@@ -438,7 +437,8 @@ def test_xray_subscription_includes_wireguard_outbound(access_token):
         settings = outbound["settings"]
         assert settings["secretKey"] == user["proxy_settings"]["wireguard"]["private_key"]
         assert settings["address"]
-        assert settings["address"][0].startswith("10.30.0.")
+        assert settings["address"][0] == user["proxy_settings"]["wireguard"]["peer_ips"][0]
+        assert settings["address"][0].startswith("10.")
         assert settings["address"][0].endswith("/32")
         assert settings["domainStrategy"] == "ForceIP"
         assert "mtu" not in settings
@@ -457,8 +457,27 @@ def test_xray_subscription_includes_wireguard_outbound(access_token):
 
 
 def test_xray_subscription_uses_host_specific_template_override(access_token):
-    core = create_core(access_token)
-    inbound = get_inbounds(access_token)[0]
+    # Use a unique inbound tag so other tests' hosts can't affect config count.
+    unique_inbound = unique_name("xray_override_inbound")
+    core = create_core(
+        access_token,
+        config={
+            "log": {"loglevel": "info"},
+            "inbounds": [
+                {
+                    "tag": unique_inbound,
+                    "listen": "0.0.0.0",
+                    "port": 2087,
+                    "protocol": "vmess",
+                    "settings": {"clients": []},
+                    "streamSettings": {"network": "ws", "wsSettings": {"path": "/yourpath"}, "security": "none"},
+                }
+            ],
+            "outbounds": [{"protocol": "freedom", "tag": "DIRECT"}, {"protocol": "blackhole", "tag": "BLOCK"}],
+        },
+        fallbacks=[],
+    )
+    inbound = unique_inbound
     override_template = create_client_template(
         access_token,
         name=unique_name("xray_host_override_template"),
@@ -510,8 +529,27 @@ def test_xray_subscription_uses_host_specific_template_override(access_token):
 
 
 def test_xray_subscription_template_override_isolated_per_host(access_token):
-    core = create_core(access_token)
-    inbound = get_inbounds(access_token)[0]
+    # Use a unique inbound tag so other tests' hosts can't affect config count.
+    unique_inbound = unique_name("xray_isolated_inbound")
+    core = create_core(
+        access_token,
+        config={
+            "log": {"loglevel": "info"},
+            "inbounds": [
+                {
+                    "tag": unique_inbound,
+                    "listen": "0.0.0.0",
+                    "port": 2087,
+                    "protocol": "vmess",
+                    "settings": {"clients": []},
+                    "streamSettings": {"network": "ws", "wsSettings": {"path": "/yourpath"}, "security": "none"},
+                }
+            ],
+            "outbounds": [{"protocol": "freedom", "tag": "DIRECT"}, {"protocol": "blackhole", "tag": "BLOCK"}],
+        },
+        fallbacks=[],
+    )
+    inbound = unique_inbound
     override_template = create_client_template(
         access_token,
         name=unique_name("xray_host_isolated_template"),
@@ -583,7 +621,7 @@ def test_xray_subscription_template_override_isolated_per_host(access_token):
         delete_core(access_token, core["id"])
 
 
-def test_singbox_subscription_includes_wireguard_outbound(access_token):
+def test_singbox_subscription_includes_wireguard_endpoint(access_token):
     interface_private_key, interface_public_key = generate_wireguard_keypair()
     pre_shared_key, _ = generate_wireguard_keypair()
     interface_name = unique_name("wg_singbox_subscription")
@@ -631,29 +669,26 @@ def test_singbox_subscription_includes_wireguard_outbound(access_token):
         assert response.status_code == status.HTTP_200_OK
 
         config = response.json()
-        wireguard_outbound = next(
-            (outbound for outbound in config.get("outbounds", []) if outbound.get("type") == "wireguard"), None
+        wireguard_ep = next(
+            (ep for ep in config.get("endpoints", []) if ep.get("type") == "wireguard"),
+            None,
         )
-        assert wireguard_outbound is not None
-        assert wireguard_outbound["tag"] == expected_tag
-        assert wireguard_outbound["system_interface"] is True
-        assert wireguard_outbound["interface_name"] == "wg0"
-        assert wireguard_outbound["mtu"] == 1408
-        assert wireguard_outbound["local_address"]
-        assert wireguard_outbound["local_address"][0].startswith("10.30.0.")
-        assert wireguard_outbound["local_address"][0].endswith("/32")
-        assert wireguard_outbound["private_key"] == user["proxy_settings"]["wireguard"]["private_key"]
-        assert wireguard_outbound["server"] == endpoint
-        assert wireguard_outbound["server_port"] == 10001
-        assert wireguard_outbound["peer_public_key"] == interface_public_key
-        assert wireguard_outbound["pre_shared_key"] == pre_shared_key
-        assert wireguard_outbound["reserved"] == [0, 0, 0]
+        assert wireguard_ep is not None
+        assert wireguard_ep["tag"] == expected_tag
+        assert wireguard_ep["system"] is True
+        assert wireguard_ep["name"] == "wg0"
+        assert wireguard_ep["mtu"] == 1408
+        assert wireguard_ep["address"]
+        assert wireguard_ep["address"][0] == user["proxy_settings"]["wireguard"]["peer_ips"][0]
+        assert wireguard_ep["address"][0].startswith("10.")
+        assert wireguard_ep["address"][0].endswith("/32")
+        assert wireguard_ep["private_key"] == user["proxy_settings"]["wireguard"]["private_key"]
 
-        peers = wireguard_outbound["peers"]
+        peers = wireguard_ep["peers"]
         assert len(peers) == 1
         peer = peers[0]
-        assert peer["server"] == endpoint
-        assert peer["server_port"] == 10001
+        assert peer["address"] == endpoint
+        assert peer["port"] == 10001
         assert peer["public_key"] == interface_public_key
         assert peer["pre_shared_key"] == pre_shared_key
         assert peer["allowed_ips"] == ["0.0.0.0/0", "::/0"]
@@ -745,16 +780,14 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
     user = create_user(access_token, group_ids=[group["id"]], payload={"username": unique_name("wg_multi_user")})
 
     try:
-        # Get the auto-allocated peer IPs
+        # Single global-pool allocation; same peer address on every WG inbound
         peer_ips = user["proxy_settings"]["wireguard"]["peer_ips"]
 
-        # peer_ips should be persisted in user settings for node sync
         assert isinstance(peer_ips, list)
         assert len(peer_ips) == 1
         assert peer_ips[0].startswith("10.")
         assert peer_ips[0].endswith("/32")
 
-        # Verify that WireGuard links use the persisted peer IPs
         links_response = client.get(f"{user['subscription_url']}/links")
         assert links_response.status_code == status.HTTP_200_OK
 
@@ -765,31 +798,23 @@ def test_user_can_be_assigned_to_multiple_wireguard_interfaces(access_token):
             parsed = urlsplit(line.strip())
             links_by_endpoint[f"{parsed.hostname}:{parsed.port}"] = parse_qs(parsed.query)
 
-        # Both endpoints should have the same persisted peer IPs
-        first_address = links_by_endpoint[f"{first_endpoint}:51820"]["address"][0]
-        second_address = links_by_endpoint[f"{second_endpoint}:51821"]["address"][0]
-        expected_address = ",".join(peer_ips)
-        assert first_address == expected_address
-        assert second_address == expected_address
+        expected_addr = ",".join(peer_ips)
+        assert links_by_endpoint[f"{first_endpoint}:51820"]["address"] == [expected_addr]
+        assert links_by_endpoint[f"{second_endpoint}:51821"]["address"] == [expected_addr]
 
-        # Verify WireGuard subscription contains the peer IPs
         wireguard_response = client.get(f"{user['subscription_url']}/wireguard")
         assert wireguard_response.status_code == status.HTTP_200_OK
         config_bodies = extract_wireguard_config_bodies(wireguard_response)
         assert len(config_bodies) == 2
 
-        # Verify each config has the same persisted Address
-        for body in config_bodies:
-            assert f"Address = {', '.join(peer_ips)}" in body
-
+        addr_line = f"Address = {', '.join(peer_ips)}"
         expected_endpoints = {f"Endpoint = {first_endpoint}:51820", f"Endpoint = {second_endpoint}:51821"}
         actual_endpoints = set()
-
         for body in config_bodies:
+            assert addr_line in body
             for endpoint in expected_endpoints:
                 if endpoint in body:
                     actual_endpoints.add(endpoint)
-
         assert actual_endpoints == expected_endpoints
 
         # Test no-op update preserves allocated peer_ips
@@ -1323,6 +1348,37 @@ def test_bulk_create_users_from_template_random_with_username_rejected(access_to
         cleanup_groups(access_token, core, groups)
 
 
+def test_bulk_apply_template_to_users(access_token):
+    core, groups = setup_groups(access_token, 1)
+    template = create_user_template(access_token, group_ids=[groups[0]["id"]])
+
+    user1 = create_user(access_token, username=unique_name("bulk_apply_tmpl_u1"))
+    user2 = create_user(access_token, username=unique_name("bulk_apply_tmpl_u2"))
+
+    try:
+        response = client.post(
+            "/api/users/bulk/apply_template",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "ids": [user1["id"], user2["id"]],
+                "user_template_id": template["id"],
+            },
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["count"] == 2
+
+        for username in (user1["username"], user2["username"]):
+            user_response = client.get(f"/api/user/{username}", headers={"Authorization": f"Bearer {access_token}"})
+            assert user_response.status_code == status.HTTP_200_OK
+            assert user_response.json()["data_limit"] == template["data_limit"]
+            assert user_response.json()["status"] == template["status"]
+    finally:
+        delete_user(access_token, user1["username"])
+        delete_user(access_token, user2["username"])
+        delete_user_template(access_token, template["id"])
+        cleanup_groups(access_token, core, groups)
+
+
 # Tests for /api/users/simple endpoint
 
 
@@ -1661,7 +1717,7 @@ def test_wireguard_peer_ip_global_pool_and_validation(access_token):
             },
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "reserved for the server" in response.json()["detail"]
+        assert "reserved" in response.json()["detail"]
 
         # Test 2: Create user without specifying peer IPs - should get persisted auto-allocation
         user1 = create_user(
@@ -1734,6 +1790,63 @@ def test_wireguard_peer_ip_global_pool_and_validation(access_token):
             delete_user(access_token, user2["username"])
         if duplicate_user:
             delete_user(access_token, duplicate_user["username"])
+        delete_group(access_token, group["id"])
+        client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
+        delete_core(access_token, core["id"])
+
+
+def test_wireguard_rejects_manual_peer_ip_outside_global_pool(access_token):
+    """Manual peer IPv4 must fall within WIREGUARD_GLOBAL_POOL."""
+    interface_private_key, _ = generate_wireguard_keypair()
+    interface_name = unique_name("wg_subnet_val")
+    endpoint = "198.51.100.40"
+
+    core = create_core(
+        access_token,
+        name=unique_name("wireguard_subnet_core"),
+        config={
+            "interface_name": interface_name,
+            "private_key": interface_private_key,
+            "listen_port": 51820,
+            "address": ["10.88.0.1/24"],
+        },
+        type="wg",
+        fallbacks=[],
+    )
+
+    host_response = client.post(
+        "/api/host",
+        headers=auth_headers(access_token),
+        json={
+            "remark": "WG Subnet Val {USERNAME}",
+            "address": [endpoint],
+            "port": 51820,
+            "inbound_tag": interface_name,
+            "priority": 1,
+        },
+    )
+    assert host_response.status_code == status.HTTP_201_CREATED
+    host_id = host_response.json()["id"]
+
+    group = create_group(access_token, name=unique_name("wg_subnet_val_group"), inbound_tags=[interface_name])
+
+    try:
+        response = client.post(
+            "/api/user",
+            headers=auth_headers(access_token),
+            json={
+                "username": unique_name("wg_bad_subnet_user"),
+                "proxy_settings": {
+                    "wireguard": {
+                        "peer_ips": ["172.16.0.50/32"],
+                    }
+                },
+                "group_ids": [group["id"]],
+            },
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "outside WIREGUARD_GLOBAL_POOL" in response.json()["detail"]
+    finally:
         delete_group(access_token, group["id"])
         client.delete(f"/api/host/{host_id}", headers=auth_headers(access_token))
         delete_core(access_token, core["id"])

@@ -122,7 +122,7 @@ export const SelectorPanel = memo(function SelectorPanel({
             <span className="truncate block min-w-0" title={title}>{title}</span>
             {isRequired && <span className="text-destructive flex-shrink-0 ml-0.5">*</span>}
           </CardTitle>
-          <Badge variant={selected.length > 0 ? "default" : "secondary"} className="text-xs sm:text-sm flex-shrink-0 min-w-[2.5rem] sm:min-w-[2.75rem] text-center tabular-nums px-2 py-0.5">
+          <Badge dir='ltr' variant={selected.length > 0 ? "default" : "secondary"} className="text-xs sm:text-sm flex-shrink-0 min-w-[2.5rem] sm:min-w-[2.75rem] text-center tabular-nums px-2 py-0.5">
             {selected.length}
           </Badge>
         </div>
@@ -171,7 +171,7 @@ export const SelectorPanel = memo(function SelectorPanel({
           </>
         ) : (
           <>
-            <div className="relative flex-shrink-0" dir="ltr">
+            <div className="relative flex-shrink-0 mt-1.5" dir="ltr">
               <Search className="absolute left-3 sm:left-3 top-1/2 h-4 w-4 sm:h-4 sm:w-4 -translate-y-1/2 text-muted-foreground" />
               <Input placeholder={searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)} className="h-9 sm:h-10 pl-10 sm:pl-10 text-sm sm:text-sm w-full" />
             </div>

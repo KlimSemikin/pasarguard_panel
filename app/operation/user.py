@@ -2,7 +2,6 @@ import asyncio
 import re
 import secrets
 from collections import Counter
-from copy import deepcopy
 from datetime import datetime as dt, timedelta as td, timezone as tz
 from typing import Literal
 
@@ -14,6 +13,9 @@ from app import notification
 from app.db import AsyncSession
 from app.db.crud.admin import get_admin
 from app.db.crud.bulk import (
+    count_bulk_datalimit_targets,
+    count_bulk_expire_targets,
+    count_bulk_proxy_targets,
     reset_all_users_data_usage,
     update_users_datalimit,
     update_users_expire,
@@ -22,6 +24,9 @@ from app.db.crud.bulk import (
 from app.db.crud.user import (
     UsersSortingOptions,
     UsersSortingOptionsSimple,
+    bulk_reset_user_data_usage,
+    bulk_revoke_user_sub,
+    bulk_set_owner,
     create_user,
     create_users_bulk,
     get_all_users_usages,
@@ -45,10 +50,16 @@ from app.models.admin import AdminDetails
 from app.models.proxy import ProxyTable
 from app.models.stats import Period, UserUsageStatsList
 from app.models.user import (
+    BulkOperationDryRunResponse,
     BulkUser,
+    BulkUsersActionResponse,
+    BulkUsersApplyTemplate,
     BulkUsersCreateResponse,
     BulkUsersFromTemplate,
     BulkUsersProxy,
+    BulkUsersSelection,
+    BulkUsersSetOwner,
+    BulkWireGuardPeerIPs,
     CreateUserFromTemplate,
     ModifyUserByTemplate,
     RemoveUsersResponse,
@@ -63,13 +74,14 @@ from app.models.user import (
     UserSubscriptionUpdateChart,
     UserSubscriptionUpdateChartSegment,
     UserSubscriptionUpdateList,
+    WireGuardPeerIPsReallocateResponse,
 )
 from app.node.sync import remove_user as sync_remove_user, sync_user, sync_users
 from app.operation import BaseOperation, OperatorType
 from app.settings import subscription_settings
 from app.utils.jwt import create_subscription_token
 from app.utils.logger import get_logger
-from app.utils.wireguard import get_wireguard_tags_from_groups, prepare_wireguard_proxy_settings
+from app.utils.wireguard import prepare_wireguard_keys_only, prepare_wireguard_proxy_settings
 from config import SUBSCRIPTION_PATH
 
 logger = get_logger("user-operation")
@@ -249,14 +261,22 @@ class UserOperation(BaseOperation):
         proxy_settings: ProxyTable,
         *,
         exclude_user_id: int | None = None,
+        skip_peer_ip_validation: bool = False,
     ) -> ProxyTable:
         try:
-            return await prepare_wireguard_proxy_settings(
-                db,
-                proxy_settings,
-                groups,
-                exclude_user_id=exclude_user_id,
-            )
+            if skip_peer_ip_validation:
+                return await prepare_wireguard_keys_only(
+                    db,
+                    proxy_settings,
+                    groups,
+                )
+            else:
+                return await prepare_wireguard_proxy_settings(
+                    db,
+                    proxy_settings,
+                    groups,
+                    exclude_user_id=exclude_user_id,
+                )
         except ValueError as exc:
             await self.raise_error(message=str(exc), code=400, db=db)
 
@@ -301,11 +321,18 @@ class UserOperation(BaseOperation):
             if modified_user.proxy_settings is not None
             else ProxyTable.model_validate(current_proxy_settings_data)
         )
+
+        # Check if peer_ips have actually changed to avoid expensive DB scans
+        old_peer_ips = set(current_proxy_settings.wireguard.peer_ips or [])
+        new_peer_ips = set(proxy_settings_to_prepare.wireguard.peer_ips or [])
+        peer_ips_changed = old_peer_ips != new_peer_ips
+
         prepared_proxy_settings = await self._prepare_user_proxy_settings(
             db,
             effective_groups,
             proxy_settings_to_prepare,
             exclude_user_id=db_user.id,
+            skip_peer_ip_validation=not peer_ips_changed,
         )
         if modified_user.proxy_settings is not None or prepared_proxy_settings.dict() != current_proxy_settings_data:
             modified_user.proxy_settings = prepared_proxy_settings
@@ -345,6 +372,52 @@ class UserOperation(BaseOperation):
         logger.info(f'User "{db_user.username}" with id "{db_user.id}" deleted by admin "{admin.username}"')
         return {}
 
+    async def _get_validated_users_by_ids(
+        self,
+        db: AsyncSession,
+        user_ids: list[int] | set[int],
+        admin: AdminDetails,
+        *,
+        load_admin: bool = True,
+        load_next_plan: bool = True,
+        load_usage_logs: bool = True,
+        load_groups: bool = True,
+    ) -> list[User]:
+        users: list[User] = []
+        for user_id in user_ids:
+            users.append(
+                await self.get_validated_user_by_id(
+                    db,
+                    user_id,
+                    admin,
+                    load_admin=load_admin,
+                    load_next_plan=load_next_plan,
+                    load_usage_logs=load_usage_logs,
+                    load_groups=load_groups,
+                )
+            )
+        return users
+
+    @staticmethod
+    def _build_bulk_action_response(users: list[User | UserNotificationResponse]) -> BulkUsersActionResponse:
+        usernames = [user.username for user in users]
+        return BulkUsersActionResponse(users=usernames, count=len(usernames))
+
+    async def bulk_remove_users(
+        self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
+    ) -> RemoveUsersResponse:
+        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin)
+        users = [await self.validate_user(db_user, include_subscription_url=False) for db_user in db_users]
+
+        await remove_users(db, db_users)
+
+        for user in users:
+            await sync_remove_user(user)
+            asyncio.create_task(notification.remove_user(user, admin))
+            logger.info(f'User "{user.username}" with id "{user.id}" deleted by admin "{admin.username}"')
+
+        return RemoveUsersResponse(users=[user.username for user in users], count=len(users))
+
     async def _reset_user_data_usage(
         self,
         db: AsyncSession,
@@ -372,6 +445,24 @@ class UserOperation(BaseOperation):
 
         return await self._reset_user_data_usage(db, db_user, admin)
 
+    async def bulk_reset_user_data_usage(
+        self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
+    ) -> BulkUsersActionResponse:
+        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
+        old_statuses = {user.id: user.status for user in db_users}
+
+        db_users = await bulk_reset_user_data_usage(db, db_users)
+        await sync_users(db_users)
+
+        users = [await self.validate_user(db_user) for db_user in db_users]
+        for user in users:
+            if user.status != old_statuses[user.id]:
+                asyncio.create_task(notification.user_status_change(user, admin))
+            asyncio.create_task(notification.reset_user_data_usage(user, admin))
+            logger.info(f'User "{user.username}" usage was reset by admin "{admin.username}"')
+
+        return self._build_bulk_action_response(users)
+
     async def revoke_user_sub(self, db: AsyncSession, username: str, admin: AdminDetails) -> UserResponse:
         db_user = await self.get_validated_user(db, username, admin)
 
@@ -383,6 +474,47 @@ class UserOperation(BaseOperation):
         logger.info(f'User "{db_user.username}" subscription was revoked by admin "{admin.username}"')
 
         return user
+
+    async def bulk_revoke_user_sub(
+        self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
+    ) -> BulkUsersActionResponse:
+        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
+
+        db_users = await bulk_revoke_user_sub(db, db_users)
+        await sync_users(db_users)
+
+        users = [await self.validate_user(db_user) for db_user in db_users]
+        for user in users:
+            asyncio.create_task(notification.user_subscription_revoked(user, admin))
+            logger.info(f'User "{user.username}" subscription was revoked by admin "{admin.username}"')
+
+        return self._build_bulk_action_response(users)
+
+    async def bulk_disable_users(
+        self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
+    ) -> BulkUsersActionResponse:
+        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
+        users_to_disable = [db_user for db_user in db_users if db_user.status != UserStatus.disabled]
+
+        users: list[UserNotificationResponse] = []
+        for db_user in users_to_disable:
+            user = await self._modify_user(db, db_user, UserModify(status=UserStatus.disabled), admin)
+            users.append(user)
+
+        return self._build_bulk_action_response(users)
+
+    async def bulk_enable_users(
+        self, db: AsyncSession, bulk_users: BulkUsersSelection, admin: AdminDetails
+    ) -> BulkUsersActionResponse:
+        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
+        users_to_enable = [db_user for db_user in db_users if db_user.status == UserStatus.disabled]
+
+        users: list[UserNotificationResponse] = []
+        for db_user in users_to_enable:
+            user = await self._modify_user(db, db_user, UserModify(status=UserStatus.active), admin)
+            users.append(user)
+
+        return self._build_bulk_action_response(users)
 
     async def reset_users_data_usage(self, db: AsyncSession, admin: AdminDetails):
         """Reset all users data usage"""
@@ -423,6 +555,21 @@ class UserOperation(BaseOperation):
         logger.info(f'{user.username}"owner successfully set to{new_admin.username} by admin "{admin.username}"')
 
         return user
+
+    async def bulk_set_owner(
+        self, db: AsyncSession, bulk_users: BulkUsersSetOwner, admin: AdminDetails
+    ) -> BulkUsersActionResponse:
+        new_admin = await self.get_validated_admin(db, username=bulk_users.admin_username)
+        db_users = await self._get_validated_users_by_ids(db, bulk_users.ids, admin, load_usage_logs=False)
+
+        db_users = await bulk_set_owner(db, db_users, new_admin)
+        users = [await self.validate_user(db_user) for db_user in db_users]
+        for user in users:
+            logger.info(
+                f'User "{user.username}" owner successfully set to "{new_admin.username}" by admin "{admin.username}"'
+            )
+
+        return self._build_bulk_action_response(users)
 
     async def get_user_usage(
         self,
@@ -808,7 +955,51 @@ class UserOperation(BaseOperation):
 
         return BulkUsersCreateResponse(subscription_urls=subscription_urls, created=len(subscription_urls))
 
+    async def bulk_apply_template_to_users(
+        self,
+        db: AsyncSession,
+        body: BulkUsersApplyTemplate,
+        admin: AdminDetails,
+    ) -> BulkUsersActionResponse:
+        db_users = await self._get_validated_users_by_ids(db, body.ids, admin, load_usage_logs=False)
+        user_template = await self.get_validated_user_template(db, body.user_template_id)
+
+        if user_template.is_disabled:
+            await self.raise_error("this template is disabled", 403)
+
+        modified_users: list[UserNotificationResponse] = []
+        for db_user in db_users:
+            original_status = db_user.status
+            user_args = self.load_base_user_args(user_template)
+            user_args["proxy_settings"] = db_user.proxy_settings
+
+            try:
+                modify_user = UserModify(**user_args, note=body.note)
+            except ValidationError as e:
+                error_messages = "; ".join([f"{err['loc'][0]}: {err['msg']}" for err in e.errors()])
+                await self.raise_error(message=error_messages, code=400)
+
+            modify_user = self.apply_settings(modify_user, user_template)
+
+            if user_template.reset_usages:
+                suppress_reset_status_change = (
+                    user_template.status == UserStatus.on_hold and original_status != UserStatus.active
+                )
+                await self._reset_user_data_usage(
+                    db,
+                    db_user,
+                    admin,
+                    emit_status_change_notification=not suppress_reset_status_change,
+                )
+
+            modified_users.append(await self._modify_user(db, db_user, modify_user, admin))
+
+        return self._build_bulk_action_response(modified_users)
+
     async def bulk_modify_expire(self, db: AsyncSession, bulk_model: BulkUser):
+        if bulk_model.dry_run:
+            n = await count_bulk_expire_targets(db, bulk_model)
+            return BulkOperationDryRunResponse(affected_users=n)
         users, users_count = await update_users_expire(db, bulk_model)
         await sync_users(users)
 
@@ -817,6 +1008,9 @@ class UserOperation(BaseOperation):
         return users_count
 
     async def bulk_modify_datalimit(self, db: AsyncSession, bulk_model: BulkUser):
+        if bulk_model.dry_run:
+            n = await count_bulk_datalimit_targets(db, bulk_model)
+            return BulkOperationDryRunResponse(affected_users=n)
         users, users_count = await update_users_datalimit(db, bulk_model)
         await sync_users(users)
 
@@ -825,12 +1019,36 @@ class UserOperation(BaseOperation):
         return users_count
 
     async def bulk_modify_proxy_settings(self, db: AsyncSession, bulk_model: BulkUsersProxy):
+        if bulk_model.dry_run:
+            n = await count_bulk_proxy_targets(db, bulk_model)
+            return BulkOperationDryRunResponse(affected_users=n)
         users, users_count = await update_users_proxy_settings(db, bulk_model)
         await sync_users(users)
 
         if self.operator_type in (OperatorType.API, OperatorType.WEB):
             return {"detail": f"operation has been successfuly done on {users_count} users"}
         return users_count
+
+    async def bulk_reallocate_wireguard_peer_ips(
+        self, db: AsyncSession, body: BulkWireGuardPeerIPs, admin: AdminDetails
+    ) -> WireGuardPeerIPsReallocateResponse:
+        from sqlalchemy import and_, select
+
+        from app.db.crud.bulk import _create_final_filter
+        from app.db.crud.user import load_user_attrs
+        from app.utils.wireguard import bulk_reallocate_wireguard_peer_ips as run_wg_bulk
+
+        final_filter = _create_final_filter(body)
+        if not admin.is_sudo:
+            final_filter = and_(final_filter, User.admin_id == admin.id)
+
+        result = await db.execute(select(User).where(final_filter))
+        users = list(result.scalars().all())
+        for u in users:
+            await load_user_attrs(u, load_usage_logs=False)
+
+        out = await run_wg_bulk(db, users, dry_run=body.dry_run, replace_all=body.replace_all)
+        return WireGuardPeerIPsReallocateResponse(**out)
 
     async def get_users_sub_update_list(
         self, db: AsyncSession, username: str, admin: AdminDetails, offset: int = 0, limit: int = 10

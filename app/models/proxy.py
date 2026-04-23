@@ -18,6 +18,7 @@ class XTLSFlows(StrEnum):
     VISION = "xtls-rprx-vision"
     VISION_UDP = "xtls-rprx-vision-udp443"
 
+
 class VlessSettings(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     flow: XTLSFlows = XTLSFlows.NONE
@@ -40,7 +41,7 @@ class ShadowsocksSettings(BaseModel):
 
 
 class HysteriaSettings(BaseModel):
-    auth: UUID = Field(default_factory=uuid4)
+    auth: str = Field(default_factory=random_password, min_length=1)
 
 
 class WireGuardPeerIPs(BaseModel):

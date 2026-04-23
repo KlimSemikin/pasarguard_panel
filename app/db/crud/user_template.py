@@ -1,10 +1,10 @@
 from typing import Union, List
 from enum import Enum
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import UserTemplate
+from app.db.models import NextPlan, UserTemplate, template_group_association
 from app.models.user_template import UserTemplateCreate, UserTemplateModify
 
 from .group import get_groups_by_ids
@@ -151,7 +151,7 @@ async def get_user_templates(
     Returns:
         List[UserTemplate]: A list of user template objects.
     """
-    query = select(UserTemplate)
+    query = select(UserTemplate).order_by(UserTemplate.id.asc())
     if offset:
         query = query.offset(offset)
     if limit:
@@ -201,6 +201,8 @@ async def get_user_templates_simple(
             else:
                 sort_list.append(s.value)
         stmt = stmt.order_by(*sort_list)
+    else:
+        stmt = stmt.order_by(UserTemplate.id.asc())
 
     # Get count BEFORE pagination (always)
     count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -219,3 +221,22 @@ async def get_user_templates_simple(
     rows = result.all()
 
     return rows, total
+
+
+async def remove_user_templates(db: AsyncSession, template_ids: list[int]) -> None:
+    """
+    Removes multiple user templates from the database by ID.
+
+    Args:
+        db (AsyncSession): Database session.
+        template_ids (list[int]): List of template IDs to remove.
+    """
+    if not template_ids:
+        return
+
+    await db.execute(
+        delete(template_group_association).where(template_group_association.c.user_template_id.in_(template_ids))
+    )
+    await db.execute(update(NextPlan).where(NextPlan.user_template_id.in_(template_ids)).values(user_template_id=None))
+    await db.execute(delete(UserTemplate).where(UserTemplate.id.in_(template_ids)))
+    await db.commit()

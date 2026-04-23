@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
-import { Activity, Loader2, Map, MoreVertical, Package, Pencil, Power, RefreshCw, RotateCcw, Trash2, Wifi } from 'lucide-react'
+import { Activity, CircleFadingArrowUp, Loader2, Map, MoreVertical, Package, Pencil, Power, PowerOff, RefreshCcw, RotateCcw, Trash2, Wifi } from 'lucide-react'
 import { toast } from 'sonner'
 import { queryClient } from '@/utils/query-client'
 import { CoresSimpleResponse, NodeResponse, useReconnectNode, useRemoveNode, useResetNodeUsage, useSyncNode, useUpdateNode } from '@/service/api'
@@ -90,6 +90,7 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresDat
   const isWireGuard = coresData?.cores?.find(core => core.id === node.core_config_id)?.type === 'wg'
 
   const handleDeleteClick = (event: Event) => {
+    event.preventDefault()
     event.stopPropagation()
     setDeleteDialogOpen(true)
   }
@@ -211,7 +212,7 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresDat
     <div className={className} onClick={e => e.stopPropagation()}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8">
+          <Button type="button" variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8">
             <MoreVertical className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -231,7 +232,7 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresDat
               onToggleStatus(node)
             }}
           >
-            <Power className="mr-2 h-4 w-4 shrink-0" />
+            {node.status === 'disabled' ? <Power className="mr-2 h-4 w-4 shrink-0" /> : <PowerOff className="mr-2 h-4 w-4 shrink-0" />}
             <span className="min-w-0 truncate">{node.status === 'disabled' ? t('enable') : t('disable')}</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
@@ -272,7 +273,7 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresDat
             }}
             disabled={resettingUsage || syncing || reconnecting}
           >
-            <RefreshCw className="mr-2 h-4 w-4 shrink-0" />
+            <RefreshCcw className="mr-2 h-4 w-4 shrink-0" />
             <span className="min-w-0 truncate">{t('nodeModal.resetUsage', { defaultValue: 'Reset' })}</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
@@ -307,7 +308,7 @@ export default function NodeActionsMenu({ node, onEdit, onToggleStatus, coresDat
             }}
             disabled={syncing || reconnecting || resettingUsage || updatingNode}
           >
-            {updatingNode ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4 shrink-0" />}
+            {updatingNode ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <CircleFadingArrowUp className="mr-2 h-4 w-4 shrink-0" />}
             <span className="min-w-0 truncate">{updatingNode ? t('nodeModal.updatingNode', { defaultValue: 'Updating Node...' }) : t('nodeModal.updateNode', { defaultValue: 'Update Node' })}</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />

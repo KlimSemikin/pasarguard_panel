@@ -16,7 +16,7 @@ from app.db.models import (
     users_groups_association,
 )
 from app.models.group import BulkGroup
-from app.models.user import BulkUser, BulkUsersProxy
+from app.models.user import BulkUser, BulkUsersProxy, BulkWireGuardPeerIPs
 
 from .general import get_datetime_add_expression
 from .user import load_user_attrs
@@ -229,11 +229,42 @@ async def remove_groups_from_users(
     return users, count_effctive_users
 
 
-def _create_final_filter(bulk_model: BulkUser | BulkUsersProxy):
+async def count_bulk_expire_targets(db: AsyncSession, bulk_model: BulkUser) -> int:
+    final_filter = _create_final_filter(bulk_model)
+    return (
+        await db.execute(select(func.count(User.id)).where(and_(final_filter, User.expire.isnot(None))))
+    ).scalar_one_or_none() or 0
+
+
+async def count_bulk_datalimit_targets(db: AsyncSession, bulk_model: BulkUser) -> int:
+    final_filter = _create_final_filter(bulk_model)
+    return (
+        await db.execute(
+            select(func.count(User.id)).where(and_(final_filter, User.data_limit.isnot(None), User.data_limit != 0))
+        )
+    ).scalar_one_or_none() or 0
+
+
+async def count_bulk_proxy_targets(db: AsyncSession, bulk_model: BulkUsersProxy) -> int:
+    final_filter = _create_final_filter(bulk_model)
+    return (await db.execute(select(func.count(User.id)).where(final_filter))).scalar_one_or_none() or 0
+
+
+async def count_bulk_group_scope(db: AsyncSession, bulk_model: BulkGroup) -> int:
+    final_filter = _create_group_filter(bulk_model)
+    return (await db.execute(select(func.count(User.id)).where(final_filter))).scalar_one_or_none() or 0
+
+
+def _create_final_filter(bulk_model: BulkUser | BulkUsersProxy | BulkWireGuardPeerIPs):
     """Create a comprehensive SQLAlchemy filter condition from a bulk model."""
     other_conditions = []
     if hasattr(bulk_model, "status") and bulk_model.status:
         other_conditions.append(User.status.in_([i.value for i in bulk_model.status]))
+        if UserStatus.expired in bulk_model.status:
+            if bulk_model.expired_after:
+                other_conditions.append(User.expire >= bulk_model.expired_after)
+            if bulk_model.expired_before:
+                other_conditions.append(User.expire <= bulk_model.expired_before)
     if bulk_model.admins:
         other_conditions.append(User.admin_id.in_([i for i in bulk_model.admins]))
     if bulk_model.group_ids:
@@ -309,10 +340,12 @@ async def update_users_datalimit(db: AsyncSession, bulk_model: BulkUser) -> tupl
     """
     final_filter = _create_final_filter(bulk_model)
 
+    extra_condition = [User.data_limit.isnot(None), User.data_limit != 0]
+    if bulk_model.amount < 0:
+        extra_condition.append(User.data_limit > bulk_model.amount * -1)
+
     count_effctive_users = (
-        await db.execute(
-            select(func.count(User.id)).where(and_(final_filter, User.data_limit.isnot(None), User.data_limit != 0))
-        )
+        await db.execute(select(func.count(User.id)).where(and_(final_filter, *extra_condition)))
     ).scalar_one_or_none() or 0
 
     # First, get the users that will have status changes BEFORE updating
@@ -343,7 +376,7 @@ async def update_users_datalimit(db: AsyncSession, bulk_model: BulkUser) -> tupl
 
     await db.execute(
         update(User)
-        .where(and_(final_filter, User.data_limit.isnot(None), User.data_limit != 0))
+        .where(and_(final_filter, *extra_condition))
         .values(data_limit=User.data_limit + bulk_model.amount, status=case(*status_cases, else_=User.status))
     )
 

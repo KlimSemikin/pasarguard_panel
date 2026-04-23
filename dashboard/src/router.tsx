@@ -15,6 +15,7 @@ const BulkDataPage = lazy(() => import('./pages/_dashboard.bulk.data'))
 const BulkExpirePage = lazy(() => import('./pages/_dashboard.bulk.expire'))
 const BulkGroupsPage = lazy(() => import('./pages/_dashboard.bulk.groups'))
 const BulkProxyPage = lazy(() => import('./pages/_dashboard.bulk.proxy'))
+const BulkWireguardPage = lazy(() => import('./pages/_dashboard.bulk.wireguard'))
 const Groups = lazy(() => import('./pages/_dashboard.groups'))
 const Hosts = lazy(() => import('./pages/_dashboard.hosts'))
 const Nodes = lazy(() => import('./pages/_dashboard.nodes'))
@@ -58,6 +59,7 @@ const fetchAdminLoader = async (): Promise<any> => {
 // Wrap all route elements in <Suspense fallback={<LoadingSpinner />}>
 export const router = createHashRouter([
   {
+    hydrateFallbackElement: <LoadingSpinner />,
     element: (
       <Suspense fallback={<LoadingSpinner />}>
         <DashboardLayout />
@@ -323,6 +325,14 @@ export const router = createHashRouter([
               </Suspense>
             ),
           },
+          {
+            path: '/bulk/wireguard',
+            element: (
+              <Suspense fallback={<LoadingSpinner />}>
+                <BulkWireguardPage />
+              </Suspense>
+            ),
+          },
         ],
       },
       {
@@ -337,6 +347,7 @@ export const router = createHashRouter([
   },
   {
     path: '/login',
+    hydrateFallbackElement: <LoadingSpinner />,
     element: (
       <Suspense fallback={<LoadingSpinner />}>
         <Login />

@@ -1,7 +1,7 @@
 from collections import defaultdict
 from enum import Enum
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -69,9 +69,7 @@ async def get_client_template_values(db: AsyncSession) -> dict[str, str]:
     return values
 
 
-async def get_client_template_contents_by_type(
-    db: AsyncSession, template_type: ClientTemplateType
-) -> dict[int, str]:
+async def get_client_template_contents_by_type(db: AsyncSession, template_type: ClientTemplateType) -> dict[int, str]:
     rows = (
         await db.execute(
             select(ClientTemplate.id, ClientTemplate.content).where(ClientTemplate.template_type == template_type.value)
@@ -161,6 +159,7 @@ async def get_first_template_by_type(
     db: AsyncSession,
     template_type: ClientTemplateType,
     exclude_id: int | None = None,
+    exclude_ids: list[int] | set[int] | None = None,
 ) -> ClientTemplate | None:
     stmt = (
         select(ClientTemplate)
@@ -169,6 +168,8 @@ async def get_first_template_by_type(
     )
     if exclude_id is not None:
         stmt = stmt.where(ClientTemplate.id != exclude_id)
+    if exclude_ids:
+        stmt = stmt.where(ClientTemplate.id.not_in(list(exclude_ids)))
     return (await db.execute(stmt)).scalars().first()
 
 
@@ -242,4 +243,19 @@ async def modify_client_template(
 
 async def remove_client_template(db: AsyncSession, db_template: ClientTemplate) -> None:
     await db.delete(db_template)
+    await db.commit()
+
+
+async def remove_client_templates(db: AsyncSession, template_ids: list[int]) -> None:
+    """
+    Removes multiple client templates from the database by ID.
+
+    Args:
+        db (AsyncSession): Database session.
+        template_ids (list[int]): List of template IDs to remove.
+    """
+    if not template_ids:
+        return
+
+    await db.execute(delete(ClientTemplate).where(ClientTemplate.id.in_(template_ids)))
     await db.commit()

@@ -3,7 +3,6 @@ import autoprefixer from 'autoprefixer'
 import tailwindcss from 'tailwindcss'
 import { defineConfig } from 'vite'
 import svgr from 'vite-plugin-svgr'
-import tsconfigPaths from 'vite-tsconfig-paths'
 import path from 'path'
 import { VitePWA } from 'vite-plugin-pwa'
 
@@ -132,6 +131,7 @@ export default defineConfig({
     },
   },
   resolve: {
+    tsconfigPaths: true,
     alias: [
       {
         find: '@',
@@ -142,13 +142,15 @@ export default defineConfig({
   plugins: [
     react(),
     svgr(),
-    tsconfigPaths(),
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: false,
       workbox: {
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Monaco is loaded lazily in editor dialogs, so its largest chunks
+        // should stay network-fetched instead of bloating the app shell precache.
+        globIgnores: ['statics/editor.api*.js', 'statics/ts.worker*.js'],
         skipWaiting: true,
         clientsClaim: true,
         runtimeCaching: [

@@ -485,7 +485,7 @@ class XrayConfiguration(BaseSubscription):
     def _build_wireguard(self, address: str, inbound: SubscriptionInboundData, settings: dict) -> dict:
         """Build WireGuard outbound for Xray subscriptions."""
         private_key = settings.get("private_key", "")
-        peer_ips = self._get_wireguard_peer_ips(settings, inbound)
+        peer_ips = list(settings.get("peer_ips") or [])
         public_key = inbound.wireguard_public_key
         if not private_key or not peer_ips or not public_key:
             return {}
@@ -569,8 +569,8 @@ class XrayConfiguration(BaseSubscription):
                 "tag": "proxy",
                 "settings": {
                     "version": 2,
-                    "address": inbound.address,
-                    "port": inbound.port,
+                    "address": address,
+                    "port": self._select_port(inbound.port),
                 },
             }
 
