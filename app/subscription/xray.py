@@ -56,8 +56,8 @@ class XrayConfiguration(BaseSubscription):
             "wireguard": self._build_wireguard,
         }
 
-    def add_config(self, remarks, outbounds, template_content: str | None = None):
-        rendered_template = render_template_string(template_content) if template_content is not None else self.template
+    def add_config(self, remarks, outbounds, settings: dict, template_content: str | None = None):
+        rendered_template = render_template_string(template_content, context={"uuid": settings["id"], "flow": settings["flow"]}) if template_content is not None else self.template
         json_template = json.loads(rendered_template)
         json_template["remarks"] = remarks
         json_template["outbounds"] = outbounds + json_template["outbounds"]
@@ -95,7 +95,7 @@ class XrayConfiguration(BaseSubscription):
             # Shadowsocks returns just a dict
             all_outbounds = [result]
 
-        self.add_config(remarks=remark, outbounds=all_outbounds, template_content=template_content)
+        self.add_config(remarks=remark, outbounds=all_outbounds, settings=settings, template_content=template_content)
 
     # ========== Transport Handlers (Registry Methods) ==========
 
